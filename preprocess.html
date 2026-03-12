@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thermawood Data Preprocessor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { color: #00b894; margin-bottom: 10px; }
+  h2 { color: #00b894; margin: 20px 0 10px; font-size: 1.1em; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .card { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+  .file-input { margin: 15px 0; }
+  input[type="file"] { background: #0f3460; color: #e0e0e0; padding: 10px; border-radius: 4px; border: 1px solid #00b894; cursor: pointer; }
+  .btn { background: #00b894; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 5px 5px 5px 0; }
+  .btn:hover { background: #00a884; }
+  .btn:disabled { background: #555; cursor: not-allowed; }
+  .btn-secondary { background: #0f3460; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+  .stat-box { background: #0f3460; border-radius: 6px; padding: 12px; text-align: center; }
+  .stat-box .value { font-size: 1.8em; color: #00b894; font-weight: bold; }
+  .stat-box .label { font-size: 0.85em; color: #aaa; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+  th { background: #0f3460; padding: 8px; text-align: left; color: #00b894; }
+  td { padding: 6px 8px; border-bottom: 1px solid #2a2a4a; }
+  .progress { width: 100%; height: 8px; background: #0f3460; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+  .progress-bar { height: 100%; background: #00b894; transition: width 0.3s; }
+  #log { background: #0a0a1a; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Thermawood Data Preprocessor</h1>
+  <p>Convert the Thermawood CRM CSV into JSON files for the mapping tool.</p>
+
+  <div class="card">
+    <h2>Step 1: Load CRM Data</h2>
+    <div class="file-input">
+      <input type="file" id="csvFile" accept=".csv">
+    </div>
+    <div class="progress hidden" id="progressWrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <div id="parseStatus"></div>
+  </div>
+
+  <div class="card hidden" id="statsCard">
+    <h2>Data Summary</h2>
+    <div class="stats" id="statsGrid"></div>
+
+    <h2>Leads by State</h2>
+    <table id="stateTable"><thead><tr><th>State</th><th>Leads</th><th>With Postcode</th></tr></thead><tbody></tbody></table>
+
+    <h2>Leads by Franchise</h2>
+    <table id="franchiseTable"><thead><tr><th>Franchise</th><th>Leads</th></tr></thead><tbody></tbody></table>
+
+    <h2>Lead Status Breakdown</h2>
+    <table id="statusTable"><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card hidden" id="downloadCard">
+    <h2>Step 2: Download Processed Files</h2>
+    <p style="margin-bottom:10px;">These files go in the <code>data/</code> folder next to <code>index.html</code>.</p>
+    <button class="btn" id="dlLeads">Download leads_by_postcode.json</button>
+    <button class="btn" id="dlTerritories">Download territories.json</button>
+    <button class="btn btn-secondary" id="dlCentroids">Download postcode_centroids.json</button>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const CENTROID_URL = 'https://raw.githubusercontent.com/matthewproctor/australianpostcodes/master/australian_postcodes.csv';
+
+const log = (msg) => {
+  const el = document.getElementById('log');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+};
+
+// State
+let leadsByPostcode = {};
+let territories = {};
+let centroidData = {};
+let rawRows = [];
+
+// Parse CSV
+document.getElementById('csvFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  log(`Loading ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`);
+  document.getElementById('progressWrap').classList.remove('hidden');
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      rawRows = results.data;
+      log(`Parsed ${rawRows.length} rows, ${results.errors.length} parse errors`);
+      if (results.errors.length > 0) {
+        log(`First 5 errors: ${results.errors.slice(0,5).map(e => e.message).join('; ')}`);
+      }
+      document.getElementById('progressBar').style.width = '50%';
+      processData();
+    },
+    error: function(err) {
+      log(`ERROR: ${err.message}`);
+    }
+  });
+});
+
+function isValidPostcode(pc) {
+  if (!pc) return false;
+  const s = String(pc).trim();
+  return /^\d{4}$/.test(s);
+}
+
+function extractStatus(opp) {
+  if (!opp) return null;
+  // Format: "open Monash NEW LEAD" or "lost Gippsland LOST" or "won Bayside WON"
+  const match = opp.match(/^(?:open|lost|won)\s+.+?\s+(NEW LEAD|QUOTE SENT|LEAD CONTACTED\/PAUSED|LOST|WON|QUOTE REQUESTED|LEAD CONTACTED|JOB BOOKED|JOB COMPLETED|NO QUOTE NEEDED)/i);
+  if (match) return match[1].toUpperCase();
+  // Fallback: try to get the last words after franchise name
+  const parts = opp.split(/\s+/);
+  if (parts.length >= 3) {
+    const status = parts.slice(2).join(' ').toUpperCase();
+    return status || null;
+  }
+  return null;
+}
+
+function extractFranchiseFromOpp(opp) {
+  if (!opp) return null;
+  // Format: "open Monash NEW LEAD"
+  const match = opp.match(/^(?:open|lost|won)\s+(.+?)\s+(?:NEW LEAD|QUOTE SENT|LEAD CONTACTED|LOST|WON|QUOTE REQUESTED|JOB BOOKED|JOB COMPLETED|NO QUOTE NEEDED)/i);
+  if (match) return match[1].trim();
+  return null;
+}
+
+function extractSource(tags, howHeard) {
+  const sources = [];
+  const combined = ((tags || '') + ' ' + (howHeard || '')).toLowerCase();
+  if (combined.includes('google')) sources.push('Google');
+  if (combined.includes('facebook')) sources.push('Facebook');
+  if (combined.includes('instagram')) sources.push('Instagram');
+  if (combined.includes('referral') || combined.includes('word of mouth')) sources.push('Referral');
+  if (combined.includes('bus')) sources.push('Bus Ad');
+  if (combined.includes('letterbox') || combined.includes('flyer')) sources.push('Letterbox');
+  if (sources.length === 0 && combined.trim()) sources.push('Other');
+  return sources;
+}
+
+function extractLeadType(tags) {
+  if (!tags) return 'Lead Only, No Quote, No Ebook';
+  const t = tags.toLowerCase();
+  if (t.includes('quote requested')) {
+    return 'Quote Requested';
+  } else if (t.includes('ebook') || t.includes('e-book')) {
+    return 'Ebook Downloaded, No Quote';
+  }
+  return 'Lead Only, No Quote, No Ebook';
+}
+
+function processData() {
+  log('Processing leads...');
+  leadsByPostcode = {};
+
+  let totalLeads = 0;
+  let validPostcode = 0;
+  let invalidPostcode = 0;
+  const stateCounts = {};
+  const franchiseCounts = {};
+  const statusCounts = {};
+  const leadTypeCounts = {};
+
+  for (const row of rawRows) {
+    totalLeads++;
+    const pc = String(row['Postal Code'] || '').trim();
+    const state = (row['State'] || '').trim().toUpperCase();
+    const city = (row['City'] || '').trim();
+    const tags = row['Tags'] || '';
+    const howHeard = row['*How did you hear about us?*'] || '';
+    const opp = row['Opportunities'] || '';
+    const franchiseVIC = (row['Franchise Assigned - VIC'] || '').trim();
+    const franchiseNSW = (row['Franchise Assigned - NSW'] || '').trim();
+    const franchiseQLD = (row['Franchise Assigned - QLD'] || '').trim();
+
+    // Coalesce franchise
+    let franchise = franchiseVIC || franchiseNSW || franchiseQLD || '';
+    if (!franchise) {
+      franchise = extractFranchiseFromOpp(opp) || '';
+    }
+    if (franchise === 'Undefined' || franchise === 'undefined') franchise = '';
+
+    // Count by state
+    if (state) {
+      stateCounts[state] = stateCounts[state] || { total: 0, withPC: 0 };
+      stateCounts[state].total++;
+    }
+
+    // Count by franchise
+    if (franchise) {
+      franchiseCounts[franchise] = (franchiseCounts[franchise] || 0) + 1;
+    }
+
+    // Status
+    const status = extractStatus(opp);
+    if (status) {
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    }
+
+    // Lead type
+    const leadType = extractLeadType(tags);
+    leadTypeCounts[leadType] = (leadTypeCounts[leadType] || 0) + 1;
+
+    if (!isValidPostcode(pc)) {
+      invalidPostcode++;
+      continue;
+    }
+
+    validPostcode++;
+    if (state) {
+      stateCounts[state].withPC++;
+    }
+
+    if (!leadsByPostcode[pc]) {
+      leadsByPostcode[pc] = {
+        postcode: pc,
+        state: state,
+        city: city,
+        leadCount: 0,
+        franchise: franchise,
+        byStatus: {},
+        bySource: {},
+        byLeadType: {}
+      };
+    }
+
+    const entry = leadsByPostcode[pc];
+    entry.leadCount++;
+
+    // Update city/state if missing
+    if (!entry.state && state) entry.state = state;
+    if (!entry.city && city) entry.city = city;
+    if (!entry.franchise && franchise) entry.franchise = franchise;
+
+    // Status breakdown
+    if (status) {
+      entry.byStatus[status] = (entry.byStatus[status] || 0) + 1;
+    }
+
+    // Source breakdown
+    const sources = extractSource(tags, howHeard);
+    for (const src of sources) {
+      entry.bySource[src] = (entry.bySource[src] || 0) + 1;
+    }
+
+    // Lead type breakdown
+    entry.byLeadType[leadType] = (entry.byLeadType[leadType] || 0) + 1;
+  }
+
+  log(`Total leads: ${totalLeads}`);
+  log(`Valid postcodes: ${validPostcode} (${(validPostcode/totalLeads*100).toFixed(1)}%)`);
+  log(`Invalid/missing postcodes: ${invalidPostcode}`);
+  log(`Unique postcodes: ${Object.keys(leadsByPostcode).length}`);
+
+  // Build territories from franchise assignments
+  buildTerritoriesFromData();
+
+  // Show stats
+  showStats(totalLeads, validPostcode, invalidPostcode, stateCounts, franchiseCounts, statusCounts);
+
+  // Fetch centroids
+  fetchCentroids();
+
+  document.getElementById('progressBar').style.width = '75%';
+}
+
+function buildTerritoriesFromData() {
+  territories = { territories: {}, lastModified: new Date().toISOString() };
+
+  const colors = [
+    '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+    '#1abc9c', '#e67e22', '#34495e', '#16a085', '#c0392b',
+    '#2980b9', '#27ae60', '#8e44ad', '#d35400', '#7f8c8d',
+    '#f1c40f', '#e91e63', '#00bcd4', '#ff5722', '#795548'
+  ];
+
+  // Group postcodes by franchise
+  const franchisePostcodes = {};
+  for (const [pc, data] of Object.entries(leadsByPostcode)) {
+    if (data.franchise && data.franchise !== 'Undefined') {
+      const f = data.franchise;
+      if (!franchisePostcodes[f]) franchisePostcodes[f] = [];
+      franchisePostcodes[f].push(pc);
+    }
+  }
+
+  let colorIdx = 0;
+  for (const [name, postcodes] of Object.entries(franchisePostcodes).sort((a,b) => b[1].length - a[1].length)) {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    territories.territories[id] = {
+      id: id,
+      name: name,
+      color: colors[colorIdx % colors.length],
+      postcodes: postcodes.sort(),
+      notes: `Auto-generated from CRM data. ${postcodes.length} postcodes.`
+    };
+    colorIdx++;
+  }
+
+  log(`Generated ${Object.keys(territories.territories).length} territories from franchise data`);
+}
+
+function fetchCentroids() {
+  log('Fetching Australian postcode centroids from GitHub...');
+
+  Papa.parse(CENTROID_URL, {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      log(`Fetched ${results.data.length} locality records`);
+
+      // Aggregate to one centroid per postcode (average lat/lng)
+      const pcAgg = {};
+      for (const row of results.data) {
+        const pc = (row.postcode || '').trim();
+        const lat = parseFloat(row.lat);
+        const lng = parseFloat(row.long || row.lon);
+        const locality = (row.locality || row.place_name || '').trim();
+        const state = (row.state || '').trim();
+
+        if (!pc || isNaN(lat) || isNaN(lng)) continue;
+
+        if (!pcAgg[pc]) {
+          pcAgg[pc] = { lats: [], lngs: [], state: state, localities: [] };
+        }
+        pcAgg[pc].lats.push(lat);
+        pcAgg[pc].lngs.push(lng);
+        if (locality && !pcAgg[pc].localities.includes(locality)) {
+          pcAgg[pc].localities.push(locality);
+        }
+      }
+
+      for (const [pc, agg] of Object.entries(pcAgg)) {
+        const avgLat = agg.lats.reduce((a,b) => a+b, 0) / agg.lats.length;
+        const avgLng = agg.lngs.reduce((a,b) => a+b, 0) / agg.lngs.length;
+        centroidData[pc] = {
+          lat: Math.round(avgLat * 10000) / 10000,
+          lng: Math.round(avgLng * 10000) / 10000,
+          state: agg.state,
+          localities: agg.localities.slice(0, 5)
+        };
+      }
+
+      log(`Computed centroids for ${Object.keys(centroidData).length} postcodes`);
+
+      // Check coverage
+      let matched = 0, unmatched = 0;
+      for (const pc of Object.keys(leadsByPostcode)) {
+        if (centroidData[pc]) matched++;
+        else unmatched++;
+      }
+      log(`Centroid coverage: ${matched} matched, ${unmatched} unmatched out of ${matched+unmatched} lead postcodes`);
+
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('downloadCard').classList.remove('hidden');
+      log('Ready to download!');
+    },
+    error: function(err) {
+      log(`Warning: Could not fetch centroids: ${err.message}`);
+      log('You can still download leads data without centroids.');
+      document.getElementById('downloadCard').classList.remove('hidden');
+    }
+  });
+}
+
+function showStats(total, valid, invalid, states, franchises, statuses) {
+  const card = document.getElementById('statsCard');
+  card.classList.remove('hidden');
+
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = `
+    <div class="stat-box"><div class="value">${total.toLocaleString()}</div><div class="label">Total Leads</div></div>
+    <div class="stat-box"><div class="value">${valid.toLocaleString()}</div><div class="label">With Valid Postcode</div></div>
+    <div class="stat-box"><div class="value">${invalid.toLocaleString()}</div><div class="label">Missing Postcode</div></div>
+    <div class="stat-box"><div class="value">${Object.keys(leadsByPostcode).length}</div><div class="label">Unique Postcodes</div></div>
+    <div class="stat-box"><div class="value">${Object.keys(territories.territories).length}</div><div class="label">Franchises Found</div></div>
+  `;
+
+  // State table
+  const stBody = document.querySelector('#stateTable tbody');
+  stBody.innerHTML = Object.entries(states)
+    .sort((a,b) => b[1].total - a[1].total)
+    .map(([s, c]) => `<tr><td>${s}</td><td>${c.total.toLocaleString()}</td><td>${c.withPC.toLocaleString()}</td></tr>`)
+    .join('');
+
+  // Franchise table
+  const fBody = document.querySelector('#franchiseTable tbody');
+  fBody.innerHTML = Object.entries(franchises)
+    .sort((a,b) => b[1] - a[1])
+    .map(([f, c]) => `<tr><td>${f}</td><td>${c.toLocaleString()}</td></tr>`)
+    .join('');
+
+  // Status table
+  const sBody = document.querySelector('#statusTable tbody');
+  sBody.innerHTML = Object.entries(statuses)
+    .sort((a,b) => b[1] - a[1])
+    .map(([s, c]) => `<tr><td>${s}</td><td>${c.toLocaleString()}</td></tr>`)
+    .join('');
+}
+
+// Download helpers
+function downloadJSON(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('dlLeads').addEventListener('click', () => {
+  downloadJSON(leadsByPostcode, 'leads_by_postcode.json');
+  log('Downloaded leads_by_postcode.json');
+});
+
+document.getElementById('dlTerritories').addEventListener('click', () => {
+  downloadJSON(territories, 'territories.json');
+  log('Downloaded territories.json');
+});
+
+document.getElementById('dlCentroids').addEventListener('click', () => {
+  downloadJSON(centroidData, 'postcode_centroids.json');
+  log('Downloaded postcode_centroids.json');
+});
+</script>
+</body>
+</html>
