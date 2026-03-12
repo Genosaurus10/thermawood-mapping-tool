@@ -756,7 +756,7 @@
     "maribyrnong": {
       "id": "maribyrnong",
       "name": "Maribyrnong",
-      "color": "#34495e",
+      "color": "#00e5ff",
       "postcodes": [
         "2033",
         "3011",
@@ -1113,7 +1113,7 @@
     "port-phillip": {
       "id": "port-phillip",
       "name": "Port Phillip",
-      "color": "#7f8c8d",
+      "color": "#ff6b9d",
       "postcodes": [
         "2579",
         "3000",
@@ -1245,7 +1245,7 @@
     "brisbane-north": {
       "id": "brisbane-north",
       "name": "Brisbane North",
-      "color": "#795548",
+      "color": "#ffab40",
       "postcodes": [
         "4014",
         "4017",
