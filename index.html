@@ -1569,16 +1569,41 @@ function initFilters() {
   });
 }
 
+function getTerritoryStates(territory) {
+  // Determine which states a territory covers based on its postcodes
+  const states = new Set();
+  if (territory.postcodes) {
+    for (const pc of territory.postcodes) {
+      const data = leadsData[pc];
+      if (data && data.state) states.add(data.state);
+    }
+  }
+  return states;
+}
+
 function renderTerritoryFilters() {
   const container = document.getElementById('franchise-filters');
+  // Remember which territories were previously checked
+  const prevChecked = new Set(activeFilters.territories);
   container.innerHTML = '';
   activeFilters.territories = new Set(['__unassigned__']);
 
   container.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="territory" data-value="__unassigned__"><span class="swatch" style="background:#4b5563;"></span> Unassigned</label>`;
 
-  for (const t of Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name))) {
-    activeFilters.territories.add(t.id);
-    container.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="territory" data-value="${t.id}"><span class="swatch" style="background:${t.color};"></span> ${t.name}</label>`;
+  const allTerritories = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
+
+  for (const t of allTerritories) {
+    // Only show territories that have postcodes in the currently active states
+    const tStates = getTerritoryStates(t);
+    const matchesActiveState = tStates.size === 0 || [...tStates].some(s => activeFilters.states.has(s));
+    if (!matchesActiveState) continue;
+
+    // On first render (prevChecked is empty or only has __unassigned__), check all visible territories
+    const isFirstRender = prevChecked.size <= 1;
+    const shouldCheck = isFirstRender || prevChecked.has(t.id);
+    if (shouldCheck) activeFilters.territories.add(t.id);
+    const checked = shouldCheck ? 'checked' : '';
+    container.innerHTML += `<label class="filter-check"><input type="checkbox" ${checked} data-filter="territory" data-value="${t.id}"><span class="swatch" style="background:${t.color};"></span> ${t.name}</label>`;
   }
 }
 
@@ -1593,6 +1618,12 @@ function handleFilterChange(checkbox) {
 
   if (checkbox.checked) filterSet.add(value);
   else filterSet.delete(value);
+
+  // When states change, cascade into territory filters
+  if (type === 'state') {
+    renderTerritoryFilters();
+  }
+
   renderAll();
 }
 
