@@ -5,127 +5,740 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thermawood Territory Mapping Tool</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 :root {
-  --bg-dark: #1a1a2e;
-  --bg-card: #16213e;
-  --bg-input: #0f3460;
-  --accent: #00b894;
-  --accent-hover: #00a884;
-  --text: #e0e0e0;
-  --text-muted: #8a8a9a;
-  --border: #2a2a4a;
-  --green-dark: #006400;
-  --green-header: #005000;
+  --bg-primary: #0a1612;
+  --bg-secondary: #111f1a;
+  --bg-tertiary: #1a2e26;
+  --bg-hover: #223d32;
+  --bg-input: #152420;
+  --accent: #0a6e41;
+  --accent-light: #0d8a52;
+  --accent-hover: #085a35;
+  --accent-glow: rgba(10, 110, 65, 0.15);
+  --accent-muted: rgba(10, 110, 65, 0.5);
+  --brand-green: #0a6e41;
+  --brand-green-dark: #064d2d;
+  --brand-orange: #eb5a28;
+  --brand-header: linear-gradient(135deg, #042a1a 0%, #064d2d 40%, #0a6e41 100%);
+  --text-primary: #edf2ef;
+  --text-secondary: #99b3a6;
+  --text-muted: #5e7e6e;
+  --border: rgba(255,255,255,0.06);
+  --border-strong: rgba(255,255,255,0.10);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --status-new: #3b82f6;
+  --status-contacted: #f59e0b;
+  --status-quoted: #8b5cf6;
+  --status-won: #0a6e41;
+  --status-lost: #ef4444;
 }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-dark); color: var(--text); overflow: hidden; height: 100vh; }
+body { font-family: 'Open Sans', 'Inter', 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); overflow: hidden; height: 100vh; }
 
-/* Layout */
-#app { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 1fr 300px; height: 100vh; }
-#header { grid-column: 1 / -1; background: var(--green-dark); padding: 8px 15px; display: flex; align-items: center; gap: 15px; }
-#header h1 { color: #fff; font-size: 1.1em; white-space: nowrap; }
-#header .subtitle { color: #aaa; font-size: 0.85em; }
-#map-area { position: relative; }
-#map { width: 100%; height: 100%; }
-#right-panel { background: var(--bg-card); overflow-y: auto; border-left: 2px solid var(--green-dark); display: flex; flex-direction: column; }
-#bottom-panel { grid-column: 1 / -1; background: var(--bg-card); border-top: 2px solid var(--green-dark); max-height: 280px; overflow-y: auto; display: flex; }
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-/* Header controls */
-.header-group { display: flex; align-items: center; gap: 8px; }
-.header-group label { font-size: 0.85em; color: #ccc; }
-.header-group select, .header-group input {
-  background: var(--bg-input); color: var(--text); border: 1px solid #555; border-radius: 3px; padding: 4px 8px; font-size: 0.85em;
+/* =================== LAYOUT =================== */
+#app {
+  display: grid;
+  grid-template-rows: 56px 1fr auto;
+  grid-template-columns: 1fr 320px;
+  height: 100vh;
 }
 
-/* Right panel sections */
-.panel-section { padding: 10px; border-bottom: 1px solid var(--border); }
-.panel-section h3 { color: var(--accent); font-size: 0.9em; margin-bottom: 8px; background: var(--green-header); padding: 6px 8px; margin: -10px -10px 8px -10px; }
+/* =================== HEADER =================== */
+#header {
+  grid-column: 1 / -1;
+  background: var(--brand-header);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  z-index: 100;
+}
 
-/* Selected postcodes list */
-#selected-list { max-height: 250px; overflow-y: auto; font-size: 0.8em; }
-#selected-list table { width: 100%; }
-#selected-list th { background: var(--bg-input); position: sticky; top: 0; }
-#selected-list th, #selected-list td { padding: 3px 6px; text-align: left; }
-#selected-list tr:hover { background: var(--bg-input); }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.brand-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255,255,255,0.25);
+  margin: 0 4px;
+}
+
+.brand .subtitle {
+  font-size: 0.8em;
+  color: rgba(255,255,255,0.7);
+  font-weight: 400;
+}
+
+.header-spacer { flex: 1; }
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75em;
+  color: rgba(255,255,255,0.6);
+  cursor: default;
+}
+
+.mode-select {
+  appearance: none;
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-sm);
+  padding: 6px 28px 6px 10px;
+  font-size: 0.82em;
+  font-family: inherit;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color var(--transition);
+}
+.mode-select:hover { border-color: rgba(255,255,255,0.4); }
+.mode-select:focus { outline: none; border-color: var(--accent); }
+
+.header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: rgba(0,0,0,0.25);
+  color: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.header-btn:hover { background: rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.3); color: #fff; }
+.header-btn svg { width: 14px; height: 14px; }
+
+/* =================== MAP =================== */
+#map-area { position: relative; overflow: hidden; }
+#map { width: 100%; height: 100%; }
+
+.info-box {
+  position: absolute;
+  top: 12px;
+  left: 55px;
+  background: rgba(15, 17, 23, 0.92);
+  backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  z-index: 1000;
+  font-size: 0.82em;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+}
+.info-box .value { color: var(--accent); font-weight: 600; }
+
+/* =================== RIGHT PANEL =================== */
+#right-panel {
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 10px;
+}
+
+.panel-header h3 {
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel-header .badge {
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: 0.7em;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.panel-header .chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+
+.panel-header.collapsed .chevron {
+  transform: rotate(-90deg);
+}
+
+.panel-body {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.panel-body.collapsed {
+  max-height: 0 !important;
+  padding: 0;
+}
+
+/* Selected list */
+#selected-list { max-height: 180px; overflow-y: auto; }
+#selected-list table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+#selected-list th {
+  background: var(--bg-tertiary);
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+}
+#selected-list td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+#selected-list tr:hover { background: var(--bg-hover); }
 
 /* Territory radio list */
-.territory-radios { max-height: 200px; overflow-y: auto; }
-.territory-radio { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 0.85em; cursor: pointer; }
-.territory-radio input { margin: 0; }
-.territory-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #555; display: inline-block; }
+.territory-radios { max-height: 220px; overflow-y: auto; }
+.territory-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 0.82em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+.territory-radio:hover { background: var(--bg-hover); }
+.territory-radio input[type="radio"] {
+  accent-color: var(--accent);
+  margin: 0;
+  width: 14px;
+  height: 14px;
+}
+.territory-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
 
 /* Buttons */
-.btn { background: var(--accent); color: #fff; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
-.btn:hover { background: var(--accent-hover); }
-.btn:disabled { background: #555; cursor: not-allowed; }
-.btn-sm { padding: 4px 10px; font-size: 0.8em; }
-.btn-danger { background: #c0392b; }
-.btn-danger:hover { background: #e74c3c; }
-.btn-assign { background: var(--green-dark); font-size: 0.95em; padding: 10px; width: 100%; margin-top: 8px; }
-.btn-assign:hover { background: #007700; }
-.btn-group { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.82em;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all var(--transition);
+}
+.btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(10,110,65,0.3); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { background: var(--bg-tertiary); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* Bottom panel */
-.filter-section { padding: 10px; min-width: 150px; border-right: 1px solid var(--border); }
-.filter-section h3 { color: var(--accent); font-size: 0.85em; margin-bottom: 6px; }
-.filter-checks { max-height: 120px; overflow-y: auto; }
-.filter-check { display: flex; align-items: center; gap: 5px; padding: 2px 0; font-size: 0.8em; cursor: pointer; }
-.filter-check input { margin: 0; }
-.filter-check .swatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.btn-sm { padding: 5px 10px; font-size: 0.78em; }
 
-/* Stats table */
-#stats-area { flex: 1; padding: 10px; overflow: auto; }
-#stats-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
-#stats-table th { background: var(--bg-input); padding: 5px 8px; text-align: right; position: sticky; top: 0; }
-#stats-table th:first-child { text-align: left; }
-#stats-table td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--border); }
-#stats-table td:first-child { text-align: left; }
-#stats-table tr.total-row, #pipeline-table tr.total-row { font-weight: bold; background: var(--bg-input); }
-#pipeline-table th { background: var(--bg-input); padding: 5px 8px; text-align: right; position: sticky; top: 0; }
-#pipeline-table th:first-child { text-align: left; }
-#pipeline-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); box-shadow: none; }
 
-/* Loading overlay */
-#loading { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
-#loading h2 { color: var(--accent); margin-bottom: 15px; }
-#loading .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-#loading-msg { color: #aaa; margin-top: 10px; font-size: 0.9em; }
+.btn-danger { background: #dc2626; }
+.btn-danger:hover { background: #ef4444; box-shadow: 0 2px 8px rgba(239,68,68,0.25); }
 
-/* Tooltip */
-.postcode-tooltip { font-size: 0.85em; }
-.postcode-tooltip .pc-title { font-weight: bold; color: var(--accent); }
-.postcode-tooltip .pc-detail { color: #666; }
+.btn-assign {
+  background: var(--accent);
+  width: 100%;
+  padding: 10px;
+  font-size: 0.85em;
+  margin-top: 10px;
+}
+.btn-assign:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(10,110,65,0.3); }
 
-/* Color picker in new territory dialog */
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* New territory form */
 .new-territory-form { margin-top: 8px; }
-.new-territory-form input[type="text"] { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid #555; border-radius: 3px; padding: 5px 8px; margin-bottom: 5px; font-size: 0.85em; }
-.new-territory-form input[type="color"] { width: 40px; height: 30px; border: none; cursor: pointer; vertical-align: middle; }
+.new-territory-form input[type="text"] {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 0.82em;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+.new-territory-form input[type="text"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.new-territory-form input[type="text"]::placeholder { color: var(--text-muted); }
+.new-territory-form input[type="color"] {
+  width: 36px;
+  height: 32px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 2px;
+  background: var(--bg-input);
+}
 
-/* Map info box */
-.info-box { position: absolute; top: 10px; left: 55px; background: rgba(22,33,62,0.9); padding: 8px 12px; border-radius: 6px; z-index: 1000; font-size: 0.85em; pointer-events: none; }
-.info-box .value { color: var(--accent); font-weight: bold; }
+/* Territory summary table */
+.territory-summary-table {
+  width: 100%;
+  font-size: 0.8em;
+  border-collapse: collapse;
+}
+.territory-summary-table th {
+  text-align: left;
+  padding: 5px 8px;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.territory-summary-table th:last-child, .territory-summary-table td:last-child { text-align: right; }
+.territory-summary-table th:nth-child(2), .territory-summary-table td:nth-child(2) { text-align: center; }
+.territory-summary-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.territory-summary-table tr:hover { background: var(--bg-hover); }
 
-/* Data loader */
-#data-loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-.loader-card { background: var(--bg-card); border-radius: 10px; padding: 30px; max-width: 600px; width: 90%; }
-.loader-card h2 { color: var(--accent); margin-bottom: 15px; }
-.loader-card p { margin-bottom: 10px; font-size: 0.9em; color: #aaa; }
-.loader-card .file-row { margin: 10px 0; display: flex; align-items: center; gap: 10px; }
-.loader-card .file-status { font-size: 0.8em; }
-.loader-card .file-status.ok { color: var(--accent); }
-.loader-card .file-status.err { color: #e74c3c; }
+/* =================== BOTTOM PANEL =================== */
+#bottom-panel {
+  grid-column: 1 / -1;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  max-height: 300px;
+  overflow: hidden;
+  display: flex;
+}
+
+.filter-section {
+  padding: 12px 14px;
+  min-width: 150px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.filter-section h3 {
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-section h3::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.filter-checks { max-height: 130px; overflow-y: auto; }
+
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background var(--transition);
+  color: var(--text-secondary);
+}
+.filter-check:hover { background: var(--bg-hover); color: var(--text-primary); }
+.filter-check input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+.filter-check .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Stats area */
+#stats-area {
+  flex: 1;
+  padding: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-bar {
+  display: flex;
+  background: var(--bg-primary);
+  padding: 4px;
+  gap: 2px;
+  border-radius: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  font-size: 0.78em;
+  font-family: inherit;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.2);
+}
+
+/* Stats tables */
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78em;
+}
+
+.stats-table th {
+  background: var(--bg-tertiary);
+  padding: 8px 10px;
+  text-align: right;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 35px;
+  z-index: 5;
+}
+.stats-table th:first-child { text-align: left; }
+
+.stats-table td {
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.stats-table td:first-child { text-align: left; color: var(--text-primary); }
+
+.stats-table tr:hover { background: var(--bg-hover); }
+
+.stats-table tr.total-row {
+  font-weight: 600;
+  background: var(--bg-tertiary);
+}
+.stats-table tr.total-row td { color: var(--text-primary); border-bottom: none; }
+
+#pc-detail-table { width: 100%; border-collapse: collapse; font-size: 0.78em; }
+#pc-detail-table th {
+  background: var(--bg-tertiary);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 35px;
+}
+#pc-detail-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+#pc-detail-table tr:hover { background: var(--bg-hover); }
+
+/* =================== LOADING OVERLAY =================== */
+#loading {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-brand {
+  font-size: 1.8em;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 24px;
+  letter-spacing: -0.02em;
+}
+.loading-brand span { color: var(--accent); }
+
+.spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#loading-msg {
+  color: var(--text-muted);
+  margin-top: 16px;
+  font-size: 0.85em;
+}
+
+/* =================== DATA LOADER MODAL =================== */
+#data-loader {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.loader-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  max-width: 560px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+}
+
+.loader-card .loader-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.loader-card .loader-title .icon {
+  width: 40px;
+  height: 40px;
+  background: var(--accent-glow);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.loader-card .loader-title h2 {
+  font-size: 1.2em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.loader-card > p {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+  margin: 10px 0 20px;
+  line-height: 1.5;
+}
+.loader-card p code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  transition: border-color var(--transition);
+}
+.file-row:hover { border-color: var(--border-strong); }
+
+.file-row .file-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+}
+
+.file-row .file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-row .file-name {
+  font-size: 0.82em;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.file-status {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+.file-status.ok { color: var(--accent); }
+.file-status.err { color: #ef4444; }
+
 .loader-card input[type="file"] { display: none; }
-.loader-card .file-btn { background: var(--bg-input); color: var(--text); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85em; border: 1px dashed #555; }
-.loader-card .file-btn:hover { border-color: var(--accent); }
 
-/* Tab buttons */
-.tab-bar { display: flex; border-bottom: 2px solid var(--green-dark); }
-.tab-btn { padding: 6px 14px; background: var(--bg-input); color: var(--text-muted); border: none; cursor: pointer; font-size: 0.8em; border-right: 1px solid var(--border); }
-.tab-btn.active { background: var(--green-header); color: #fff; }
+.file-btn {
+  padding: 5px 10px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.75em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.file-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.loader-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--text-muted);
+  font-size: 0.8em;
+}
+.loader-divider::before, .loader-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.loader-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#auto-load-status {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  min-height: 20px;
+}
+
+/* =================== POSTCODE TOOLTIP =================== */
+.postcode-tooltip { font-size: 0.85em; line-height: 1.4; }
+.postcode-tooltip .pc-title { font-weight: 600; color: var(--accent); margin-bottom: 2px; }
+
+/* Territory label on map */
+.territory-label div {
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+}
+
+/* =================== LEAFLET OVERRIDES =================== */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+}
+.leaflet-popup-tip { background: var(--bg-secondary); }
+.leaflet-popup-content { margin: 12px 14px; font-family: 'Inter', sans-serif; font-size: 0.85em; }
+.leaflet-popup-content h4 { color: var(--accent); }
+.leaflet-popup-content hr { border-color: var(--border); }
+
+.leaflet-control-zoom a {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--bg-hover) !important; }
+
+/* =================== RESPONSIVE =================== */
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  #right-panel { display: none; }
+}
 </style>
 </head>
 <body>
@@ -133,62 +746,102 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-dark); 
 <!-- Data Loader Modal -->
 <div id="data-loader">
   <div class="loader-card">
-    <h2>Thermawood Territory Mapping Tool</h2>
-    <p>Load your data files to get started. Run <strong>preprocess.html</strong> first to generate these from the CRM CSV.</p>
+    <div class="loader-title">
+      <img src="data/thermawood-logo.png" alt="Thermawood" style="height:28px;filter:brightness(0) invert(0.4) sepia(1) hue-rotate(100deg) saturate(3);">
+      <h2>Territory Mapper</h2>
+    </div>
+    <p>Load your preprocessed data files to build the interactive map. Run <code>preprocess.html</code> first to generate these from the CRM CSV export.</p>
 
     <div class="file-row">
-      <label class="file-btn" for="file-leads">leads_by_postcode.json</label>
+      <span class="file-icon">📊</span>
+      <div class="file-info">
+        <div class="file-name">leads_by_postcode.json</div>
+        <div class="file-status" id="status-leads">Required</div>
+      </div>
+      <label class="file-btn" for="file-leads">Browse</label>
       <input type="file" id="file-leads" accept=".json">
-      <span class="file-status" id="status-leads">Not loaded</span>
     </div>
+
     <div class="file-row">
-      <label class="file-btn" for="file-centroids">postcode_centroids.json</label>
+      <span class="file-icon">📍</span>
+      <div class="file-info">
+        <div class="file-name">postcode_centroids.json</div>
+        <div class="file-status" id="status-centroids">Required</div>
+      </div>
+      <label class="file-btn" for="file-centroids">Browse</label>
       <input type="file" id="file-centroids" accept=".json">
-      <span class="file-status" id="status-centroids">Not loaded</span>
     </div>
+
     <div class="file-row">
-      <label class="file-btn" for="file-territories">territories.json (optional)</label>
+      <span class="file-icon">🏷️</span>
+      <div class="file-info">
+        <div class="file-name">territories.json</div>
+        <div class="file-status" id="status-territories">Optional — will use localStorage</div>
+      </div>
+      <label class="file-btn" for="file-territories">Browse</label>
       <input type="file" id="file-territories" accept=".json">
-      <span class="file-status" id="status-territories">Will use localStorage or defaults</span>
     </div>
+
     <div class="file-row">
-      <label class="file-btn" for="file-geojson">au_postcodes.geojson (optional)</label>
+      <span class="file-icon">🌏</span>
+      <div class="file-info">
+        <div class="file-name">au_postcodes.geojson</div>
+        <div class="file-status" id="status-geojson">Optional — will fetch online</div>
+      </div>
+      <label class="file-btn" for="file-geojson">Browse</label>
       <input type="file" id="file-geojson" accept=".json,.geojson">
-      <span class="file-status" id="status-geojson">Boundaries will be fetched online</span>
     </div>
 
-    <p style="margin-top:15px;">Or load all files from the <code>data/</code> folder automatically:</p>
-    <button class="btn" id="auto-load-btn" style="margin-top:5px;">Auto-load from data/ folder</button>
-    <div id="auto-load-status" style="margin-top:8px;font-size:0.85em;color:#aaa;"></div>
+    <div class="loader-divider">or</div>
 
-    <button class="btn btn-assign" id="start-btn" disabled style="margin-top:15px;">Launch Map</button>
+    <div class="loader-actions">
+      <button class="btn" id="auto-load-btn" style="width:100%;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Auto-load from data/ folder
+      </button>
+      <div id="auto-load-status"></div>
+      <button class="btn btn-assign" id="start-btn" disabled>Launch Map</button>
+    </div>
   </div>
 </div>
 
 <!-- Loading Overlay -->
 <div id="loading" style="display:none;">
-  <div class="spinner"></div>
-  <h2>Loading Map</h2>
+  <img src="data/thermawood-logo.png" alt="Thermawood" style="height:40px;margin-bottom:20px;">
+  <div class="spinner-ring"></div>
   <div id="loading-msg">Initializing...</div>
 </div>
 
 <!-- Main App -->
 <div id="app" style="display:none;">
   <div id="header">
-    <h1>Thermawood</h1>
-    <span class="subtitle">Territory Mapping Tool</span>
-    <div style="flex:1;"></div>
-    <div class="header-group">
-      <label>Mode:</label>
-      <select id="mode-select">
-        <option value="view">View</option>
+    <div class="brand">
+      <img src="data/thermawood-logo.png" alt="Thermawood" class="brand-logo">
+      <div class="brand-divider"></div>
+      <span class="subtitle">Territory Mapper</span>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="header-controls">
+      <span class="header-badge" title="CSV export has no date columns — re-export from GHL with Date Added to enable this">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Date filter N/A
+      </span>
+
+      <select class="mode-select" id="mode-select">
+        <option value="view">View Mode</option>
         <option value="select">Select Postcodes</option>
       </select>
-    </div>
-    <div class="header-group">
-      <span style="font-size:0.75em;color:#aaa;" title="CSV export has no date columns — re-export from GHL with Date Added to enable this">📅 Date filter N/A</span>
-      <button class="btn btn-sm" id="export-btn">Export Territories</button>
-      <button class="btn btn-sm" id="import-btn">Import Territories</button>
+
+      <button class="header-btn" id="export-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        Export
+      </button>
+      <button class="header-btn" id="import-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Import
+      </button>
       <input type="file" id="import-file" accept=".json" style="display:none;">
     </div>
   </div>
@@ -200,38 +853,58 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-dark); 
 
   <div id="right-panel">
     <div class="panel-section">
-      <h3>Selected Postcodes (<span id="selected-count">0</span>)</h3>
-      <div id="selected-list"></div>
-      <div class="btn-group">
-        <button class="btn btn-sm" id="clear-selection-btn">Clear Selection</button>
-        <button class="btn btn-sm" id="select-unassigned-btn">Select Unassigned</button>
+      <div class="panel-header" data-section="selected">
+        <h3>Selected Postcodes <span class="badge" id="selected-count">0</span></h3>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="panel-body" id="panel-selected">
+        <div id="selected-list"></div>
+        <div class="btn-group" style="margin-top:8px;">
+          <button class="btn btn-sm btn-secondary" id="clear-selection-btn">Clear</button>
+          <button class="btn btn-sm btn-secondary" id="select-unassigned-btn">Select Unassigned</button>
+        </div>
       </div>
     </div>
 
     <div class="panel-section">
-      <h3>Assign to Territory</h3>
-      <div class="territory-radios" id="territory-radios"></div>
-      <button class="btn btn-assign" id="assign-btn" disabled>
-        Assign selected postcodes to territory above
-      </button>
-      <div id="assign-info" style="font-size:0.75em;color:#aaa;margin-top:5px;"></div>
+      <div class="panel-header" data-section="assign">
+        <h3>Assign to Territory</h3>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="panel-body" id="panel-assign">
+        <div class="territory-radios" id="territory-radios"></div>
+        <button class="btn btn-assign" id="assign-btn" disabled>
+          Assign selected postcodes
+        </button>
+        <div id="assign-info" style="font-size:0.72em;color:var(--text-muted);margin-top:5px;"></div>
+      </div>
     </div>
 
     <div class="panel-section">
-      <h3>Manage Territories</h3>
-      <div class="new-territory-form">
-        <input type="text" id="new-territory-name" placeholder="New territory name...">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="color" id="new-territory-color" value="#e74c3c">
-          <button class="btn btn-sm" id="create-territory-btn">Create Territory</button>
-          <button class="btn btn-sm btn-danger" id="delete-territory-btn">Delete Selected</button>
+      <div class="panel-header" data-section="manage">
+        <h3>Manage Territories</h3>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="panel-body" id="panel-manage">
+        <div class="new-territory-form">
+          <input type="text" id="new-territory-name" placeholder="New territory name...">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="color" id="new-territory-color" value="#e74c3c">
+            <button class="btn btn-sm" id="create-territory-btn">Create</button>
+            <button class="btn btn-sm btn-danger" id="delete-territory-btn">Delete Selected</button>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="panel-section" style="flex:1;">
-      <h3>Territory Summary</h3>
-      <div id="territory-summary" style="font-size:0.8em;"></div>
+      <div class="panel-header" data-section="summary">
+        <h3>Territory Summary</h3>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="panel-body" id="panel-summary">
+        <div id="territory-summary"></div>
+      </div>
     </div>
   </div>
 
@@ -258,16 +931,16 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-dark); 
         <button class="tab-btn" data-tab="pipeline">Pipeline Status</button>
         <button class="tab-btn" data-tab="postcodes">Postcode Detail</button>
       </div>
-      <div id="tab-leads">
-        <table id="stats-table"><thead id="stats-thead"></thead><tbody id="stats-tbody"></tbody></table>
+      <div id="tab-leads" style="overflow:auto;flex:1;">
+        <table class="stats-table" id="stats-table"><thead id="stats-thead"></thead><tbody id="stats-tbody"></tbody></table>
       </div>
-      <div id="tab-pipeline" style="display:none;">
-        <table id="pipeline-table" style="width:100%;border-collapse:collapse;font-size:0.8em;">
+      <div id="tab-pipeline" style="display:none;overflow:auto;flex:1;">
+        <table class="stats-table" id="pipeline-table">
           <thead id="pipeline-thead"></thead>
           <tbody id="pipeline-tbody"></tbody>
         </table>
       </div>
-      <div id="tab-postcodes" style="display:none;">
+      <div id="tab-postcodes" style="display:none;overflow:auto;flex:1;">
         <table id="pc-detail-table"><thead><tr><th>Postcode</th><th>City</th><th>State</th><th>Leads</th><th>Territory</th><th>Status</th></tr></thead><tbody id="pc-detail-tbody"></tbody></table>
       </div>
     </div>
@@ -278,16 +951,16 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-dark); 
 // ============================================================
 // DATA & STATE
 // ============================================================
-let leadsData = {};       // postcode -> { leadCount, state, city, franchise, byStatus, bySource, byLeadType }
-let centroidData = {};    // postcode -> { lat, lng, state, localities }
+let leadsData = {};
+let centroidData = {};
 let territories = { territories: {}, lastModified: '' };
-let geojsonData = null;   // raw GeoJSON FeatureCollection
+let geojsonData = null;
 let selectedPostcodes = new Set();
 let selectedTerritory = '__unassigned__';
 
 // Leaflet objects
 let map, boundaryLayer, circleLayer, labelLayer;
-let postcodeFeatures = {}; // postcode -> leaflet layer
+let postcodeFeatures = {};
 
 // Filters
 let activeFilters = {
@@ -296,6 +969,17 @@ let activeFilters = {
   leadTypes: new Set(),
   statuses: new Set()
 };
+
+// ============================================================
+// COLLAPSIBLE PANELS
+// ============================================================
+document.querySelectorAll('.panel-header').forEach(header => {
+  header.addEventListener('click', () => {
+    header.classList.toggle('collapsed');
+    const body = header.nextElementSibling;
+    if (body) body.classList.toggle('collapsed');
+  });
+});
 
 // ============================================================
 // DATA LOADING
@@ -374,7 +1058,7 @@ document.getElementById('auto-load-btn').addEventListener('click', async functio
   }
 
   checkReady();
-  status.textContent = loaderState.leads && loaderState.centroids ? 'Ready! Click Launch Map.' : 'Some required files missing. Use preprocess.html first.';
+  status.textContent = loaderState.leads && loaderState.centroids ? 'Ready! Click Launch Map.' : 'Some required files missing.';
 });
 
 // Start button
@@ -395,7 +1079,6 @@ async function initApp() {
   if (!geojsonData) {
     loadingMsg.textContent = 'Fetching Australian postcode boundaries...';
     try {
-      // Try multiple sources
       const sources = [
         'data/au_postcodes.geojson',
         'https://raw.githubusercontent.com/tonywr71/GeoJson-Data/master/australian-postcodes.json'
@@ -417,7 +1100,6 @@ async function initApp() {
   loadingMsg.textContent = 'Building map...';
   document.getElementById('app').style.display = 'grid';
 
-  // Init map
   setTimeout(() => {
     initMap();
     initFilters();
@@ -434,9 +1116,10 @@ async function initApp() {
 function initMap() {
   map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([-37.81, 144.96], 8);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 18
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 18,
+    subdomains: 'abcd'
   }).addTo(map);
 
   // Create custom panes for z-ordering
@@ -448,12 +1131,7 @@ function initMap() {
   circleLayer = L.layerGroup({ pane: 'circlePane' }).addTo(map);
   labelLayer = L.layerGroup({ pane: 'labelPane' }).addTo(map);
 
-  // Render boundaries if available
-  if (geojsonData) {
-    renderBoundaries();
-  }
-
-  // Render lead circles
+  if (geojsonData) renderBoundaries();
   renderCircles();
   renderLabels();
 }
@@ -476,9 +1154,9 @@ function getPostcodeStyle(pc) {
 
   if (isSelected) {
     return {
-      fillColor: territory ? territory.color : '#ffff00',
-      fillOpacity: 0.5,
-      color: '#ffff00',
+      fillColor: territory ? territory.color : '#fbbf24',
+      fillOpacity: 0.55,
+      color: '#fbbf24',
       weight: 3,
       dashArray: ''
     };
@@ -495,9 +1173,9 @@ function getPostcodeStyle(pc) {
   }
 
   return {
-    fillColor: '#cccccc',
-    fillOpacity: 0.05,
-    color: '#888',
+    fillColor: '#6b7280',
+    fillOpacity: 0.06,
+    color: '#4b5563',
     weight: 0.5,
     dashArray: ''
   };
@@ -522,7 +1200,6 @@ function renderBoundaries() {
       const leadInfo = leadsData[pc];
       const territory = getTerritoryForPostcode(pc);
 
-      // Tooltip
       let tip = `<div class="postcode-tooltip">`;
       tip += `<div class="pc-title">${pc}</div>`;
       if (leadInfo) {
@@ -535,24 +1212,20 @@ function renderBoundaries() {
       tip += `</div>`;
       layer.bindTooltip(tip);
 
-      // Click handler
       layer.on('click', function() {
         if (document.getElementById('mode-select').value !== 'select') return;
         togglePostcodeSelection(pc);
       });
 
       layer.on('mouseover', function() {
-        if (document.getElementById('mode-select').value === 'view') {
-          showHoverInfo(pc);
-        }
+        if (document.getElementById('mode-select').value === 'view') showHoverInfo(pc);
         layer.setStyle({ weight: 3, color: '#fff' });
         layer.bringToFront();
       });
 
       layer.on('mouseout', function() {
         hideHoverInfo();
-        const style = getPostcodeStyle(pc);
-        layer.setStyle(style);
+        layer.setStyle(getPostcodeStyle(pc));
       });
     },
     filter: function(feature) {
@@ -583,35 +1256,31 @@ function renderCircles() {
       pane: 'circlePane',
       radius: radius,
       fillColor: color,
-      fillOpacity: 0.6,
-      color: '#fff',
+      fillOpacity: 0.65,
+      color: 'rgba(255,255,255,0.3)',
       weight: 0.5
     });
 
-    // Popup with details
     let popup = `<div style="min-width:200px;">`;
-    popup += `<h4 style="margin:0 0 5px;">${pc} - ${data.city || ''}</h4>`;
+    popup += `<h4 style="margin:0 0 5px;">${pc} — ${data.city || ''}</h4>`;
     popup += `<div>${data.state || ''} | <strong>${data.leadCount}</strong> total leads</div>`;
     if (territory) {
-      popup += `<div style="color:${territory.color};font-weight:bold;">${territory.name}</div>`;
+      popup += `<div style="color:${territory.color};font-weight:600;">${territory.name}</div>`;
     }
-    // Status breakdown
     if (data.byStatus && Object.keys(data.byStatus).length) {
-      popup += `<hr style="margin:5px 0;border-color:#ddd;"><strong>By Status:</strong><br>`;
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Pipeline:</strong><br>`;
       for (const [s, c] of Object.entries(data.byStatus).sort((a,b) => b[1]-a[1])) {
         popup += `${s}: ${c}<br>`;
       }
     }
-    // Source breakdown
     if (data.bySource && Object.keys(data.bySource).length) {
-      popup += `<hr style="margin:5px 0;border-color:#ddd;"><strong>By Source:</strong><br>`;
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Source:</strong><br>`;
       for (const [s, c] of Object.entries(data.bySource).sort((a,b) => b[1]-a[1])) {
         popup += `${s}: ${c}<br>`;
       }
     }
-    // Lead type breakdown
     if (data.byLeadType && Object.keys(data.byLeadType).length) {
-      popup += `<hr style="margin:5px 0;border-color:#ddd;"><strong>By Type:</strong><br>`;
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Type:</strong><br>`;
       for (const [s, c] of Object.entries(data.byLeadType).sort((a,b) => b[1]-a[1])) {
         popup += `${s}: ${c}<br>`;
       }
@@ -619,7 +1288,6 @@ function renderCircles() {
     popup += `</div>`;
     circle.bindPopup(popup);
 
-    // Click in select mode
     circle.on('click', function(e) {
       if (document.getElementById('mode-select').value === 'select') {
         L.DomEvent.stopPropagation(e);
@@ -637,15 +1305,10 @@ function renderLabels() {
   for (const [id, t] of Object.entries(territories.territories || {})) {
     if (!t.postcodes || t.postcodes.length === 0) continue;
 
-    // Compute centroid of territory
     let totalLat = 0, totalLng = 0, count = 0;
     for (const pc of t.postcodes) {
       const c = centroidData[pc];
-      if (c) {
-        totalLat += c.lat;
-        totalLng += c.lng;
-        count++;
-      }
+      if (c) { totalLat += c.lat; totalLng += c.lng; count++; }
     }
     if (count === 0) continue;
 
@@ -653,7 +1316,7 @@ function renderLabels() {
       pane: 'labelPane',
       icon: L.divIcon({
         className: 'territory-label',
-        html: `<div style="background:${t.color};color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:bold;white-space:nowrap;text-shadow:1px 1px 1px rgba(0,0,0,0.5);opacity:0.85;">${t.name}</div>`,
+        html: `<div style="background:${t.color};color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;text-shadow:1px 1px 2px rgba(0,0,0,0.5);opacity:0.9;font-family:'Open Sans',Inter,sans-serif;">${t.name}</div>`,
         iconSize: null
       }),
       interactive: false
@@ -666,19 +1329,14 @@ function renderLabels() {
 // SELECTION & TERRITORY ASSIGNMENT
 // ============================================================
 function togglePostcodeSelection(pc) {
-  if (selectedPostcodes.has(pc)) {
-    selectedPostcodes.delete(pc);
-  } else {
-    selectedPostcodes.add(pc);
-  }
+  if (selectedPostcodes.has(pc)) selectedPostcodes.delete(pc);
+  else selectedPostcodes.add(pc);
   updateSelectionUI();
   updatePostcodeStyle(pc);
 }
 
 function updatePostcodeStyle(pc) {
-  if (postcodeFeatures[pc]) {
-    postcodeFeatures[pc].setStyle(getPostcodeStyle(pc));
-  }
+  if (postcodeFeatures[pc]) postcodeFeatures[pc].setStyle(getPostcodeStyle(pc));
 }
 
 function updateSelectionUI() {
@@ -686,10 +1344,9 @@ function updateSelectionUI() {
   document.getElementById('selected-count').textContent = count;
   document.getElementById('assign-btn').disabled = count === 0;
 
-  // Build selected list table
   const list = document.getElementById('selected-list');
   if (count === 0) {
-    list.innerHTML = '<div style="color:#666;font-size:0.85em;padding:5px;">Click postcodes on map to select them</div>';
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:0.82em;padding:5px;">Click postcodes on map to select them</div>';
     return;
   }
 
@@ -698,11 +1355,10 @@ function updateSelectionUI() {
   for (const pc of sorted) {
     const t = getTerritoryForPostcode(pc);
     const leads = leadsData[pc] ? leadsData[pc].leadCount : 0;
-    html += `<tr><td>${pc}</td><td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '-'}</td><td>${leads}</td></tr>`;
+    html += `<tr><td>${pc}</td><td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '—'}</td><td>${leads}</td></tr>`;
   }
   html += '</tbody></table>';
   list.innerHTML = html;
-
   document.getElementById('assign-info').textContent = `${count} postcodes selected.`;
 }
 
@@ -719,7 +1375,7 @@ function renderTerritoryRadios() {
   let html = `
     <label class="territory-radio">
       <input type="radio" name="territory" value="__unassigned__" ${selectedTerritory === '__unassigned__' ? 'checked' : ''}>
-      <span class="territory-swatch" style="background:#666;"></span>
+      <span class="territory-swatch" style="background:#4b5563;"></span>
       Unassigned
     </label>`;
 
@@ -729,12 +1385,10 @@ function renderTerritoryRadios() {
       <label class="territory-radio">
         <input type="radio" name="territory" value="${t.id}" ${selectedTerritory === t.id ? 'checked' : ''}>
         <span class="territory-swatch" style="background:${t.color};"></span>
-        ${t.name} (${t.postcodes ? t.postcodes.length : 0})
+        ${t.name} <span style="color:var(--text-muted);font-size:0.85em;">(${t.postcodes ? t.postcodes.length : 0})</span>
       </label>`;
   }
   container.innerHTML = html;
-
-  // Bind change events
   container.querySelectorAll('input[type="radio"]').forEach(r => {
     r.addEventListener('change', () => { selectedTerritory = r.value; });
   });
@@ -745,11 +1399,11 @@ function renderTerritorySummary() {
   const sorted = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
 
   if (sorted.length === 0) {
-    el.innerHTML = '<div style="color:#666;">No territories defined yet.</div>';
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82em;">No territories defined yet.</div>';
     return;
   }
 
-  let html = '<table style="width:100%;font-size:0.85em;"><thead><tr><th>Territory</th><th>PCs</th><th>Leads</th></tr></thead><tbody>';
+  let html = '<table class="territory-summary-table"><thead><tr><th>Territory</th><th>PCs</th><th>Leads</th></tr></thead><tbody>';
   for (const t of sorted) {
     let totalLeads = 0;
     for (const pc of (t.postcodes || [])) {
@@ -764,28 +1418,19 @@ function renderTerritorySummary() {
 // Assign button
 document.getElementById('assign-btn').addEventListener('click', function() {
   if (selectedPostcodes.size === 0) return;
-
   const targetId = selectedTerritory;
 
-  // Remove selected postcodes from all territories
   for (const t of Object.values(territories.territories)) {
     t.postcodes = (t.postcodes || []).filter(pc => !selectedPostcodes.has(pc));
   }
 
-  // Add to target territory (unless unassigning)
   if (targetId !== '__unassigned__' && territories.territories[targetId]) {
     const existing = new Set(territories.territories[targetId].postcodes || []);
-    for (const pc of selectedPostcodes) {
-      existing.add(pc);
-    }
+    for (const pc of selectedPostcodes) existing.add(pc);
     territories.territories[targetId].postcodes = [...existing].sort();
   }
 
-  // Clear selection
-  const prevSelected = [...selectedPostcodes];
   selectedPostcodes.clear();
-
-  // Save & re-render
   saveTerritories();
   renderAll();
 });
@@ -794,22 +1439,15 @@ document.getElementById('assign-btn').addEventListener('click', function() {
 document.getElementById('create-territory-btn').addEventListener('click', function() {
   const name = document.getElementById('new-territory-name').value.trim();
   if (!name) return;
-
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  if (territories.territories[id]) {
-    alert('Territory with this name already exists.');
-    return;
-  }
+  if (territories.territories[id]) { alert('Territory already exists.'); return; }
 
-  const color = document.getElementById('new-territory-color').value;
   territories.territories[id] = {
-    id: id,
-    name: name,
-    color: color,
+    id, name,
+    color: document.getElementById('new-territory-color').value,
     postcodes: [],
     notes: ''
   };
-
   document.getElementById('new-territory-name').value = '';
   saveTerritories();
   renderAll();
@@ -820,8 +1458,7 @@ document.getElementById('delete-territory-btn').addEventListener('click', functi
   if (selectedTerritory === '__unassigned__') return;
   const t = territories.territories[selectedTerritory];
   if (!t) return;
-  if (!confirm(`Delete territory "${t.name}"? Its ${(t.postcodes||[]).length} postcodes will become unassigned.`)) return;
-
+  if (!confirm(`Delete "${t.name}"? Its ${(t.postcodes||[]).length} postcodes will become unassigned.`)) return;
   delete territories.territories[selectedTerritory];
   selectedTerritory = '__unassigned__';
   saveTerritories();
@@ -839,18 +1476,13 @@ document.getElementById('clear-selection-btn').addEventListener('click', functio
 // Select unassigned
 document.getElementById('select-unassigned-btn').addEventListener('click', function() {
   selectedPostcodes.clear();
-
   const assigned = new Set();
   for (const t of Object.values(territories.territories)) {
     for (const pc of (t.postcodes || [])) assigned.add(pc);
   }
-
   for (const pc of Object.keys(leadsData)) {
-    if (!assigned.has(pc) && shouldShowPostcode(pc)) {
-      selectedPostcodes.add(pc);
-    }
+    if (!assigned.has(pc) && shouldShowPostcode(pc)) selectedPostcodes.add(pc);
   }
-
   updateSelectionUI();
   if (geojsonData) renderBoundaries();
 });
@@ -867,9 +1499,7 @@ document.getElementById('export-btn').addEventListener('click', function() {
   const blob = new Blob([JSON.stringify(territories, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'territories.json';
-  a.click();
+  a.href = url; a.download = 'territories.json'; a.click();
   URL.revokeObjectURL(url);
 });
 
@@ -886,9 +1516,7 @@ document.getElementById('import-file').addEventListener('change', function(e) {
       territories = JSON.parse(ev.target.result);
       saveTerritories();
       renderAll();
-    } catch(err) {
-      alert('Invalid territories file: ' + err.message);
-    }
+    } catch(err) { alert('Invalid file: ' + err.message); }
   };
   reader.readAsText(file);
 });
@@ -897,7 +1525,6 @@ document.getElementById('import-file').addEventListener('change', function(e) {
 // FILTERS
 // ============================================================
 function initFilters() {
-  // Collect unique values
   const states = new Set();
   const leadTypes = new Set();
   const statuses = new Set();
@@ -908,32 +1535,22 @@ function initFilters() {
     for (const st of Object.keys(data.byStatus || {})) statuses.add(st);
   }
 
-  // State filters
   const stateContainer = document.getElementById('state-filters');
   for (const s of [...states].sort()) {
     activeFilters.states.add(s);
-    stateContainer.innerHTML += `
-      <label class="filter-check">
-        <input type="checkbox" checked data-filter="state" data-value="${s}"> ${s}
-      </label>`;
+    stateContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="state" data-value="${s}"> ${s}</label>`;
   }
 
-  // Territory filters
   renderTerritoryFilters();
 
-  // Lead type filters
   const ltContainer = document.getElementById('leadtype-filters');
   for (const lt of [...leadTypes].sort()) {
     activeFilters.leadTypes.add(lt);
-    ltContainer.innerHTML += `
-      <label class="filter-check">
-        <input type="checkbox" checked data-filter="leadtype" data-value="${lt}"> ${lt}
-      </label>`;
+    ltContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="leadtype" data-value="${lt}"> ${lt}</label>`;
   }
 
-  // Pipeline status filters
   const statusOrder = ['NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
-  const statusColors = { 'NEW LEAD': '#3498db', 'LEAD CONTACTED/PAUSED': '#f39c12', 'QUOTE SENT': '#9b59b6', 'WON': '#2ecc71', 'LOST': '#e74c3c' };
+  const statusColors = { 'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)', 'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)' };
   const statusContainer = document.getElementById('status-filters');
   const sortedStatuses = [...statuses].sort((a, b) => {
     const ia = statusOrder.indexOf(a), ib = statusOrder.indexOf(b);
@@ -941,26 +1558,14 @@ function initFilters() {
   });
   for (const st of sortedStatuses) {
     activeFilters.statuses.add(st);
-    const col = statusColors[st] || '#888';
-    statusContainer.innerHTML += `
-      <label class="filter-check">
-        <input type="checkbox" checked data-filter="status" data-value="${st}">
-        <span class="swatch" style="background:${col};"></span> ${st}
-      </label>`;
+    const col = statusColors[st] || '#6b7280';
+    statusContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="status" data-value="${st}"><span class="swatch" style="background:${col};"></span> ${st}</label>`;
   }
-  // Add "No Status" option for leads without pipeline data
   activeFilters.statuses.add('__none__');
-  statusContainer.innerHTML += `
-    <label class="filter-check">
-      <input type="checkbox" checked data-filter="status" data-value="__none__">
-      <span class="swatch" style="background:#555;"></span> No Status
-    </label>`;
+  statusContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="status" data-value="__none__"><span class="swatch" style="background:#4b5563;"></span> No Status</label>`;
 
-  // Bind filter change events
   document.getElementById('bottom-panel').addEventListener('change', function(e) {
-    if (e.target.dataset.filter) {
-      handleFilterChange(e.target);
-    }
+    if (e.target.dataset.filter) handleFilterChange(e.target);
   });
 }
 
@@ -969,26 +1574,17 @@ function renderTerritoryFilters() {
   container.innerHTML = '';
   activeFilters.territories = new Set(['__unassigned__']);
 
-  container.innerHTML += `
-    <label class="filter-check">
-      <input type="checkbox" checked data-filter="territory" data-value="__unassigned__">
-      <span class="swatch" style="background:#666;"></span> Unassigned
-    </label>`;
+  container.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="territory" data-value="__unassigned__"><span class="swatch" style="background:#4b5563;"></span> Unassigned</label>`;
 
   for (const t of Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name))) {
     activeFilters.territories.add(t.id);
-    container.innerHTML += `
-      <label class="filter-check">
-        <input type="checkbox" checked data-filter="territory" data-value="${t.id}">
-        <span class="swatch" style="background:${t.color};"></span> ${t.name}
-      </label>`;
+    container.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="territory" data-value="${t.id}"><span class="swatch" style="background:${t.color};"></span> ${t.name}</label>`;
   }
 }
 
 function handleFilterChange(checkbox) {
   const type = checkbox.dataset.filter;
   const value = checkbox.dataset.value;
-
   let filterSet;
   if (type === 'state') filterSet = activeFilters.states;
   else if (type === 'territory') filterSet = activeFilters.territories;
@@ -997,35 +1593,28 @@ function handleFilterChange(checkbox) {
 
   if (checkbox.checked) filterSet.add(value);
   else filterSet.delete(value);
-
   renderAll();
 }
 
 function shouldShowPostcode(pc) {
   const data = leadsData[pc];
-
-  // State filter
   if (data && data.state && !activeFilters.states.has(data.state)) return false;
 
-  // Territory filter
   const t = getTerritoryForPostcode(pc);
   const tId = t ? t.id : '__unassigned__';
   if (!activeFilters.territories.has(tId)) return false;
 
-  // Lead type filter - show if any matching lead type
   if (data && data.byLeadType) {
     const hasMatch = Object.keys(data.byLeadType).some(lt => activeFilters.leadTypes.has(lt));
     if (!hasMatch && Object.keys(data.byLeadType).length > 0) return false;
   }
 
-  // Pipeline status filter
   if (data) {
     const hasStatusData = data.byStatus && Object.keys(data.byStatus).length > 0;
     if (hasStatusData) {
       const hasMatch = Object.keys(data.byStatus).some(st => activeFilters.statuses.has(st));
       if (!hasMatch) return false;
     } else {
-      // No status data — show only if "__none__" is checked
       if (!activeFilters.statuses.has('__none__')) return false;
     }
   }
@@ -1043,12 +1632,10 @@ function showHoverInfo(pc) {
 
   let html = `<strong>${pc}</strong>`;
   if (data) {
-    html += ` - ${data.city || ''}, ${data.state || ''}`;
+    html += ` — ${data.city || ''}, ${data.state || ''}`;
     html += `<br><span class="value">${data.leadCount}</span> leads`;
   }
-  if (t) {
-    html += `<br><span style="color:${t.color};">${t.name}</span>`;
-  }
+  if (t) html += `<br><span style="color:${t.color};">${t.name}</span>`;
 
   el.innerHTML = html;
   el.style.display = 'block';
@@ -1059,82 +1646,60 @@ function hideHoverInfo() {
 }
 
 // ============================================================
-// STATS TABLE
+// STATS TABLES
 // ============================================================
 function renderStatsTable() {
-  // Leads by territory table
   const territoryList = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
   const leadTypesList = [...new Set(Object.values(leadsData).flatMap(d => Object.keys(d.byLeadType || {})))].sort();
 
-  // Header
   const thead = document.getElementById('stats-thead');
-  let headerHtml = '<tr><th>LeadType</th>';
-  for (const t of territoryList) {
-    headerHtml += `<th style="color:${t.color};">${t.name}</th>`;
-  }
+  let headerHtml = '<tr><th>Lead Type</th>';
+  for (const t of territoryList) headerHtml += `<th style="color:${t.color};">${t.name}</th>`;
   headerHtml += '<th>Unassigned</th><th><strong>Total</strong></th></tr>';
   thead.innerHTML = headerHtml;
 
-  // Body
   const tbody = document.getElementById('stats-tbody');
   const totals = {};
-  let grandTotal = 0;
-  let unassignedTotal = 0;
+  let grandTotal = 0, unassignedTotal = 0;
 
   let bodyHtml = '';
   for (const lt of leadTypesList) {
     bodyHtml += `<tr><td>${lt}</td>`;
-    let rowTotal = 0;
-    let rowUnassigned = 0;
+    let rowTotal = 0, rowUnassigned = 0;
 
     for (const t of territoryList) {
       let count = 0;
       for (const pc of (t.postcodes || [])) {
-        if (leadsData[pc] && leadsData[pc].byLeadType && leadsData[pc].byLeadType[lt]) {
-          count += leadsData[pc].byLeadType[lt];
-        }
+        if (leadsData[pc] && leadsData[pc].byLeadType && leadsData[pc].byLeadType[lt]) count += leadsData[pc].byLeadType[lt];
       }
       bodyHtml += `<td>${count || ''}</td>`;
       totals[t.id] = (totals[t.id] || 0) + count;
       rowTotal += count;
     }
 
-    // Unassigned
     const assigned = new Set();
-    for (const t of territoryList) {
-      for (const pc of (t.postcodes || [])) assigned.add(pc);
-    }
+    for (const t of territoryList) for (const pc of (t.postcodes || [])) assigned.add(pc);
     for (const [pc, data] of Object.entries(leadsData)) {
-      if (!assigned.has(pc) && data.byLeadType && data.byLeadType[lt]) {
-        rowUnassigned += data.byLeadType[lt];
-      }
+      if (!assigned.has(pc) && data.byLeadType && data.byLeadType[lt]) rowUnassigned += data.byLeadType[lt];
     }
-    bodyHtml += `<td>${rowUnassigned || ''}</td>`;
-    bodyHtml += `<td><strong>${rowTotal + rowUnassigned}</strong></td></tr>`;
+    bodyHtml += `<td>${rowUnassigned || ''}</td><td><strong>${rowTotal + rowUnassigned}</strong></td></tr>`;
     unassignedTotal += rowUnassigned;
     grandTotal += rowTotal + rowUnassigned;
   }
 
-  // Total row
   bodyHtml += `<tr class="total-row"><td><strong>Total</strong></td>`;
-  for (const t of territoryList) {
-    bodyHtml += `<td><strong>${(totals[t.id] || 0).toLocaleString()}</strong></td>`;
-  }
-  bodyHtml += `<td><strong>${unassignedTotal.toLocaleString()}</strong></td>`;
-  bodyHtml += `<td><strong>${grandTotal.toLocaleString()}</strong></td></tr>`;
-
+  for (const t of territoryList) bodyHtml += `<td><strong>${(totals[t.id] || 0).toLocaleString()}</strong></td>`;
+  bodyHtml += `<td><strong>${unassignedTotal.toLocaleString()}</strong></td><td><strong>${grandTotal.toLocaleString()}</strong></td></tr>`;
   tbody.innerHTML = bodyHtml;
 
-  // Postcode detail table
   renderPostcodeDetailTable();
 }
 
 function renderPipelineTable() {
   const territoryList = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
   const statusOrder = ['NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
-  const statusColors = { 'NEW LEAD': '#3498db', 'LEAD CONTACTED/PAUSED': '#f39c12', 'QUOTE SENT': '#9b59b6', 'WON': '#2ecc71', 'LOST': '#e74c3c' };
+  const statusColors = { 'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)', 'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)' };
 
-  // Collect all statuses from visible data
   const allStatuses = new Set();
   for (const [pc, data] of Object.entries(leadsData)) {
     if (!shouldShowPostcode(pc)) continue;
@@ -1145,56 +1710,42 @@ function renderPipelineTable() {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
-  // Header: Territory | status1 | status2 | ... | No Status | Total
   const thead = document.getElementById('pipeline-thead');
   let headerHtml = '<tr><th style="text-align:left;">Territory</th>';
-  for (const st of sortedStatuses) {
-    headerHtml += `<th style="color:${statusColors[st] || '#aaa'};">${st}</th>`;
-  }
-  headerHtml += '<th style="color:#555;">No Status</th><th><strong>Total</strong></th></tr>';
+  for (const st of sortedStatuses) headerHtml += `<th style="color:${statusColors[st] || 'var(--text-muted)'};">${st}</th>`;
+  headerHtml += '<th style="color:var(--text-muted);">No Status</th><th><strong>Total</strong></th></tr>';
   thead.innerHTML = headerHtml;
 
-  // Body
   const tbody = document.getElementById('pipeline-tbody');
   let bodyHtml = '';
 
-  // Collect assigned postcodes
   const assigned = new Set();
-  for (const t of Object.values(territories.territories || {})) {
-    for (const pc of (t.postcodes || [])) assigned.add(pc);
-  }
+  for (const t of Object.values(territories.territories || {})) for (const pc of (t.postcodes || [])) assigned.add(pc);
 
   const grandTotals = {};
-  let grandNoStatus = 0;
-  let grandTotal = 0;
+  let grandNoStatus = 0, grandTotal = 0;
 
   const buildRow = (label, color, postcodeList) => {
     let html = `<tr><td style="text-align:left;"><span style="color:${color};">${label}</span></td>`;
-    let rowTotal = 0;
-    let rowNoStatus = 0;
+    let rowTotal = 0, rowNoStatus = 0;
 
     for (const st of sortedStatuses) {
       let count = 0;
       for (const pc of postcodeList) {
         if (!shouldShowPostcode(pc)) continue;
-        if (leadsData[pc] && leadsData[pc].byStatus && leadsData[pc].byStatus[st]) {
-          count += leadsData[pc].byStatus[st];
-        }
+        if (leadsData[pc] && leadsData[pc].byStatus && leadsData[pc].byStatus[st]) count += leadsData[pc].byStatus[st];
       }
       html += `<td style="text-align:right;">${count || ''}</td>`;
       grandTotals[st] = (grandTotals[st] || 0) + count;
       rowTotal += count;
     }
 
-    // No status count
     for (const pc of postcodeList) {
       if (!shouldShowPostcode(pc)) continue;
       if (leadsData[pc]) {
         const hasStatus = leadsData[pc].byStatus && Object.keys(leadsData[pc].byStatus).length > 0;
-        if (!hasStatus) {
-          rowNoStatus += leadsData[pc].leadCount;
-        } else {
-          // Leads without status = total - sum of statuses
+        if (!hasStatus) rowNoStatus += leadsData[pc].leadCount;
+        else {
           const statusSum = Object.values(leadsData[pc].byStatus).reduce((a,b) => a+b, 0);
           rowNoStatus += leadsData[pc].leadCount - statusSum;
         }
@@ -1208,23 +1759,13 @@ function renderPipelineTable() {
     return html;
   };
 
-  // Each territory
-  for (const t of territoryList) {
-    bodyHtml += buildRow(t.name, t.color, t.postcodes || []);
-  }
+  for (const t of territoryList) bodyHtml += buildRow(t.name, t.color, t.postcodes || []);
+  bodyHtml += buildRow('Unassigned', '#6b7280', Object.keys(leadsData).filter(pc => !assigned.has(pc)));
 
-  // Unassigned
-  const unassignedPCs = Object.keys(leadsData).filter(pc => !assigned.has(pc));
-  bodyHtml += buildRow('Unassigned', '#888', unassignedPCs);
-
-  // Total row
   bodyHtml += `<tr class="total-row"><td style="text-align:left;"><strong>Total</strong></td>`;
-  for (const st of sortedStatuses) {
-    bodyHtml += `<td style="text-align:right;"><strong>${(grandTotals[st] || 0).toLocaleString()}</strong></td>`;
-  }
+  for (const st of sortedStatuses) bodyHtml += `<td style="text-align:right;"><strong>${(grandTotals[st] || 0).toLocaleString()}</strong></td>`;
   bodyHtml += `<td style="text-align:right;"><strong>${grandNoStatus.toLocaleString()}</strong></td>`;
   bodyHtml += `<td style="text-align:right;"><strong>${grandTotal.toLocaleString()}</strong></td></tr>`;
-
   tbody.innerHTML = bodyHtml;
 }
 
@@ -1239,13 +1780,13 @@ function renderPostcodeDetailTable() {
     const t = getTerritoryForPostcode(pc);
     const statuses = data.byStatus && Object.keys(data.byStatus).length
       ? Object.entries(data.byStatus).map(([s,c]) => `${s}: ${c}`).join(', ')
-      : '-';
+      : '—';
     return `<tr>
       <td>${pc}</td>
       <td>${data.city || ''}</td>
       <td>${data.state || ''}</td>
       <td>${data.leadCount}</td>
-      <td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '-'}</td>
+      <td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '—'}</td>
       <td style="font-size:0.85em;">${statuses}</td>
     </tr>`;
   }).join('');
@@ -1266,7 +1807,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // EVENT HANDLERS
 // ============================================================
 function initEventHandlers() {
-  // Mode change
   document.getElementById('mode-select').addEventListener('change', function() {
     if (this.value === 'view') {
       selectedPostcodes.clear();
