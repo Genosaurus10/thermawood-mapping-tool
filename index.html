@@ -381,7 +381,7 @@ body { font-family: 'Open Sans', 'Inter', 'Segoe UI', system-ui, sans-serif; bac
 
 .filter-section {
   padding: 12px 14px;
-  min-width: 150px;
+  min-width: 130px;
   border-right: 1px solid var(--border);
   overflow-y: auto;
 }
@@ -922,8 +922,20 @@ body { font-family: 'Open Sans', 'Inter', 'Segoe UI', system-ui, sans-serif; bac
       <div class="filter-checks" id="leadtype-filters"></div>
     </div>
     <div class="filter-section">
-      <h3>Pipeline Status</h3>
+      <h3>Opportunity Stage</h3>
       <div class="filter-checks" id="status-filters"></div>
+    </div>
+    <div class="filter-section">
+      <h3>Lifecycle</h3>
+      <div class="filter-checks" id="lifecycle-filters"></div>
+    </div>
+    <div class="filter-section">
+      <h3>Source</h3>
+      <div class="filter-checks" id="source-filters"></div>
+    </div>
+    <div class="filter-section">
+      <h3>How Heard</h3>
+      <div class="filter-checks" id="heard-filters"></div>
     </div>
     <div id="stats-area">
       <div class="tab-bar">
@@ -967,8 +979,58 @@ let activeFilters = {
   states: new Set(),
   territories: new Set(),
   leadTypes: new Set(),
-  statuses: new Set()
+  statuses: new Set(),
+  lifecycle: new Set(),
+  sources: new Set(),
+  heard: new Set()
 };
+
+// ============================================================
+// DATA ACCESS HELPERS (support both old and new data structures)
+// ============================================================
+function getTotal(data) {
+  if (!data) return 0;
+  if (data.total !== undefined) return data.total;
+  if (data.leadCount !== undefined) return data.leadCount;
+  return 0;
+}
+function getOpportunities(data) {
+  if (!data) return {};
+  if (data.opportunities) return data.opportunities;
+  if (data.byStatus) return data.byStatus;
+  return {};
+}
+function getLeadTypes(data) {
+  if (!data) return {};
+  if (data.lead_types) return data.lead_types;
+  if (data.byLeadType) return data.byLeadType;
+  return {};
+}
+function getSources(data) {
+  if (!data) return {};
+  if (data.sources) return data.sources;
+  if (data.bySource) return data.bySource;
+  return {};
+}
+function getLifecycle(data) {
+  return (data && data.lifecycle) ? data.lifecycle : {};
+}
+function getHeardAbout(data) {
+  return (data && data.heard_about) ? data.heard_about : {};
+}
+function getWindowTypes(data) {
+  return (data && data.window_types) ? data.window_types : {};
+}
+function getMonthly(data) {
+  return (data && data.monthly) ? data.monthly : {};
+}
+function getCity(data) {
+  if (!data) return '';
+  return data.city || data.territory || '';
+}
+function getState(data) {
+  return (data && data.state) ? data.state : '';
+}
 
 // ============================================================
 // COLLAPSIBLE PANELS
@@ -1203,8 +1265,8 @@ function renderBoundaries() {
       let tip = `<div class="postcode-tooltip">`;
       tip += `<div class="pc-title">${pc}</div>`;
       if (leadInfo) {
-        tip += `<div>${leadInfo.city || ''}, ${leadInfo.state || ''}</div>`;
-        tip += `<div><strong>${leadInfo.leadCount}</strong> leads</div>`;
+        tip += `<div>${getCity(leadInfo)}, ${getState(leadInfo)}</div>`;
+        tip += `<div><strong>${getTotal(leadInfo)}</strong> leads</div>`;
       }
       if (territory) {
         tip += `<div style="color:${territory.color}">${territory.name}</div>`;
@@ -1240,7 +1302,7 @@ function renderBoundaries() {
 function renderCircles() {
   circleLayer.clearLayers();
 
-  const maxLeads = Math.max(...Object.values(leadsData).map(d => d.leadCount), 1);
+  const maxLeads = Math.max(...Object.values(leadsData).map(d => getTotal(d)), 1);
 
   for (const [pc, data] of Object.entries(leadsData)) {
     if (!shouldShowPostcode(pc)) continue;
@@ -1248,7 +1310,8 @@ function renderCircles() {
     const centroid = centroidData[pc];
     if (!centroid) continue;
 
-    const radius = Math.max(3, Math.sqrt(data.leadCount / maxLeads) * 25);
+    const total = getTotal(data);
+    const radius = Math.max(3, Math.sqrt(total / maxLeads) * 25);
     const territory = getTerritoryForPostcode(pc);
     const color = territory ? territory.color : '#4dabf7';
 
@@ -1261,28 +1324,56 @@ function renderCircles() {
       weight: 0.5
     });
 
-    let popup = `<div style="min-width:200px;">`;
-    popup += `<h4 style="margin:0 0 5px;">${pc} — ${data.city || ''}</h4>`;
-    popup += `<div>${data.state || ''} | <strong>${data.leadCount}</strong> total leads</div>`;
+    const opps = getOpportunities(data);
+    const leadTypes = getLeadTypes(data);
+    const sources = getSources(data);
+    const lifecycle = getLifecycle(data);
+    const heardAbout = getHeardAbout(data);
+    const windowTypes = getWindowTypes(data);
+
+    let popup = `<div style="min-width:220px;">`;
+    popup += `<h4 style="margin:0 0 5px;">${pc} — ${getCity(data)}</h4>`;
+    popup += `<div>${getState(data)} | <strong>${total}</strong> total leads</div>`;
     if (territory) {
       popup += `<div style="color:${territory.color};font-weight:600;">${territory.name}</div>`;
     }
-    if (data.byStatus && Object.keys(data.byStatus).length) {
-      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Pipeline:</strong><br>`;
-      for (const [s, c] of Object.entries(data.byStatus).sort((a,b) => b[1]-a[1])) {
-        popup += `${s}: ${c}<br>`;
+    if (data.earliest && data.latest) {
+      popup += `<div style="font-size:0.85em;color:var(--text-muted);">${data.earliest} to ${data.latest}</div>`;
+    }
+    if (Object.keys(opps).length) {
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Opportunities:</strong><br>`;
+      for (const [s, c] of Object.entries(opps).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
       }
     }
-    if (data.bySource && Object.keys(data.bySource).length) {
+    if (Object.keys(lifecycle).length) {
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Lifecycle:</strong><br>`;
+      for (const [s, c] of Object.entries(lifecycle).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
+      }
+    }
+    if (Object.keys(sources).length) {
       popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Source:</strong><br>`;
-      for (const [s, c] of Object.entries(data.bySource).sort((a,b) => b[1]-a[1])) {
-        popup += `${s}: ${c}<br>`;
+      for (const [s, c] of Object.entries(sources).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
       }
     }
-    if (data.byLeadType && Object.keys(data.byLeadType).length) {
-      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Type:</strong><br>`;
-      for (const [s, c] of Object.entries(data.byLeadType).sort((a,b) => b[1]-a[1])) {
-        popup += `${s}: ${c}<br>`;
+    if (Object.keys(heardAbout).length) {
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>How Heard:</strong><br>`;
+      for (const [s, c] of Object.entries(heardAbout).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
+      }
+    }
+    if (Object.keys(windowTypes).length) {
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Window Types:</strong><br>`;
+      for (const [s, c] of Object.entries(windowTypes).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
+      }
+    }
+    if (Object.keys(leadTypes).length) {
+      popup += `<hr style="margin:8px 0;border-color:var(--border);"><strong>Lead Type:</strong><br>`;
+      for (const [s, c] of Object.entries(leadTypes).sort((a,b) => b[1]-a[1])) {
+        if (c > 0) popup += `${s}: ${c}<br>`;
       }
     }
     popup += `</div>`;
@@ -1354,7 +1445,7 @@ function updateSelectionUI() {
   const sorted = [...selectedPostcodes].sort();
   for (const pc of sorted) {
     const t = getTerritoryForPostcode(pc);
-    const leads = leadsData[pc] ? leadsData[pc].leadCount : 0;
+    const leads = leadsData[pc] ? getTotal(leadsData[pc]) : 0;
     html += `<tr><td>${pc}</td><td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '—'}</td><td>${leads}</td></tr>`;
   }
   html += '</tbody></table>';
@@ -1407,7 +1498,7 @@ function renderTerritorySummary() {
   for (const t of sorted) {
     let totalLeads = 0;
     for (const pc of (t.postcodes || [])) {
-      if (leadsData[pc]) totalLeads += leadsData[pc].leadCount;
+      if (leadsData[pc]) totalLeads += getTotal(leadsData[pc]);
     }
     html += `<tr><td><span style="color:${t.color};">${t.name}</span></td><td>${(t.postcodes||[]).length}</td><td>${totalLeads.toLocaleString()}</td></tr>`;
   }
@@ -1528,13 +1619,20 @@ function initFilters() {
   const states = new Set();
   const leadTypes = new Set();
   const statuses = new Set();
+  const lifecycleStages = new Set();
+  const sourceNames = new Set();
+  const heardNames = new Set();
 
   for (const data of Object.values(leadsData)) {
-    if (data.state) states.add(data.state);
-    for (const lt of Object.keys(data.byLeadType || {})) leadTypes.add(lt);
-    for (const st of Object.keys(data.byStatus || {})) statuses.add(st);
+    if (getState(data)) states.add(getState(data));
+    for (const lt of Object.keys(getLeadTypes(data))) leadTypes.add(lt);
+    for (const st of Object.keys(getOpportunities(data))) statuses.add(st);
+    for (const lc of Object.keys(getLifecycle(data))) lifecycleStages.add(lc);
+    for (const src of Object.keys(getSources(data))) sourceNames.add(src);
+    for (const h of Object.keys(getHeardAbout(data))) heardNames.add(h);
   }
 
+  // States
   const stateContainer = document.getElementById('state-filters');
   for (const s of [...states].sort()) {
     activeFilters.states.add(s);
@@ -1543,14 +1641,29 @@ function initFilters() {
 
   renderTerritoryFilters();
 
+  // Lead Types
   const ltContainer = document.getElementById('leadtype-filters');
   for (const lt of [...leadTypes].sort()) {
     activeFilters.leadTypes.add(lt);
     ltContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="leadtype" data-value="${lt}"> ${lt}</label>`;
   }
 
-  const statusOrder = ['NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
-  const statusColors = { 'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)', 'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)' };
+  // Opportunity Stages (pipeline statuses)
+  const statusOrder = ['new_lead', 'lead_contacted', 'quote_requested', 'quote_sent', 'won', 'lost', 'job_booked', 'job_completed',
+                       'NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
+  const statusColors = {
+    'new_lead': 'var(--status-new)', 'lead_contacted': 'var(--status-contacted)',
+    'quote_requested': '#a855f7', 'quote_sent': 'var(--status-quoted)',
+    'won': 'var(--status-won)', 'lost': 'var(--status-lost)',
+    'job_booked': '#06b6d4', 'job_completed': '#22c55e',
+    'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)',
+    'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)'
+  };
+  const statusLabels = {
+    'new_lead': 'New Lead', 'lead_contacted': 'Lead Contacted',
+    'quote_requested': 'Quote Requested', 'quote_sent': 'Quote Sent',
+    'won': 'Won', 'lost': 'Lost', 'job_booked': 'Job Booked', 'job_completed': 'Job Completed'
+  };
   const statusContainer = document.getElementById('status-filters');
   const sortedStatuses = [...statuses].sort((a, b) => {
     const ia = statusOrder.indexOf(a), ib = statusOrder.indexOf(b);
@@ -1559,10 +1672,41 @@ function initFilters() {
   for (const st of sortedStatuses) {
     activeFilters.statuses.add(st);
     const col = statusColors[st] || '#6b7280';
-    statusContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="status" data-value="${st}"><span class="swatch" style="background:${col};"></span> ${st}</label>`;
+    const label = statusLabels[st] || st;
+    statusContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="status" data-value="${st}"><span class="swatch" style="background:${col};"></span> ${label}</label>`;
   }
   activeFilters.statuses.add('__none__');
   statusContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="status" data-value="__none__"><span class="swatch" style="background:#4b5563;"></span> No Status</label>`;
+
+  // Lifecycle
+  const lifecycleOrder = ['lead', 'mql', 'sql', 'opportunity', 'customer'];
+  const lifecycleColors = { 'lead': '#94a3b8', 'mql': '#f59e0b', 'sql': '#3b82f6', 'opportunity': '#8b5cf6', 'customer': '#0a6e41' };
+  const lifecycleLabels = { 'lead': 'Lead', 'mql': 'MQL', 'sql': 'SQL', 'opportunity': 'Opportunity', 'customer': 'Customer' };
+  const lifecycleContainer = document.getElementById('lifecycle-filters');
+  const sortedLifecycle = [...lifecycleStages].sort((a, b) => {
+    const ia = lifecycleOrder.indexOf(a), ib = lifecycleOrder.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  for (const lc of sortedLifecycle) {
+    activeFilters.lifecycle.add(lc);
+    const col = lifecycleColors[lc] || '#6b7280';
+    const label = lifecycleLabels[lc] || lc;
+    lifecycleContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="lifecycle" data-value="${lc}"><span class="swatch" style="background:${col};"></span> ${label}</label>`;
+  }
+
+  // Sources
+  const sourceContainer = document.getElementById('source-filters');
+  for (const src of [...sourceNames].sort()) {
+    activeFilters.sources.add(src);
+    sourceContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="source" data-value="${src}"> ${src}</label>`;
+  }
+
+  // How Heard
+  const heardContainer = document.getElementById('heard-filters');
+  for (const h of [...heardNames].sort()) {
+    activeFilters.heard.add(h);
+    heardContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="heard" data-value="${h}"> ${h}</label>`;
+  }
 
   document.getElementById('bottom-panel').addEventListener('change', function(e) {
     if (e.target.dataset.filter) handleFilterChange(e.target);
@@ -1570,12 +1714,17 @@ function initFilters() {
 }
 
 function getTerritoryStates(territory) {
-  // Determine which states a territory covers based on its postcodes
+  // Use the territory's state field if available (new structure)
+  if (territory.state) return new Set([territory.state]);
+  // Fallback: determine from postcode data
   const states = new Set();
   if (territory.postcodes) {
     for (const pc of territory.postcodes) {
       const data = leadsData[pc];
-      if (data && data.state) states.add(data.state);
+      if (data) {
+        const s = getState(data);
+        if (s) states.add(s);
+      }
     }
   }
   return states;
@@ -1610,11 +1759,17 @@ function renderTerritoryFilters() {
 function handleFilterChange(checkbox) {
   const type = checkbox.dataset.filter;
   const value = checkbox.dataset.value;
-  let filterSet;
-  if (type === 'state') filterSet = activeFilters.states;
-  else if (type === 'territory') filterSet = activeFilters.territories;
-  else if (type === 'leadtype') filterSet = activeFilters.leadTypes;
-  else if (type === 'status') filterSet = activeFilters.statuses;
+  const filterMap = {
+    'state': activeFilters.states,
+    'territory': activeFilters.territories,
+    'leadtype': activeFilters.leadTypes,
+    'status': activeFilters.statuses,
+    'lifecycle': activeFilters.lifecycle,
+    'source': activeFilters.sources,
+    'heard': activeFilters.heard
+  };
+  const filterSet = filterMap[type];
+  if (!filterSet) return;
 
   if (checkbox.checked) filterSet.add(value);
   else filterSet.delete(value);
@@ -1629,24 +1784,50 @@ function handleFilterChange(checkbox) {
 
 function shouldShowPostcode(pc) {
   const data = leadsData[pc];
-  if (data && data.state && !activeFilters.states.has(data.state)) return false;
+  const state = data ? getState(data) : '';
+  if (state && !activeFilters.states.has(state)) return false;
 
   const t = getTerritoryForPostcode(pc);
   const tId = t ? t.id : '__unassigned__';
   if (!activeFilters.territories.has(tId)) return false;
 
-  if (data && data.byLeadType) {
-    const hasMatch = Object.keys(data.byLeadType).some(lt => activeFilters.leadTypes.has(lt));
-    if (!hasMatch && Object.keys(data.byLeadType).length > 0) return false;
-  }
-
   if (data) {
-    const hasStatusData = data.byStatus && Object.keys(data.byStatus).length > 0;
-    if (hasStatusData) {
-      const hasMatch = Object.keys(data.byStatus).some(st => activeFilters.statuses.has(st));
+    // Lead type filter
+    const lt = getLeadTypes(data);
+    if (Object.keys(lt).length > 0) {
+      const hasMatch = Object.keys(lt).some(k => activeFilters.leadTypes.has(k));
+      if (!hasMatch) return false;
+    }
+
+    // Opportunity stage filter
+    const opps = getOpportunities(data);
+    const hasOppData = Object.keys(opps).length > 0 && Object.values(opps).some(v => v > 0);
+    if (hasOppData) {
+      const hasMatch = Object.keys(opps).some(st => opps[st] > 0 && activeFilters.statuses.has(st));
       if (!hasMatch) return false;
     } else {
       if (!activeFilters.statuses.has('__none__')) return false;
+    }
+
+    // Lifecycle filter (only filter if lifecycle data exists)
+    const lc = getLifecycle(data);
+    if (Object.keys(lc).length > 0 && activeFilters.lifecycle.size > 0) {
+      const hasMatch = Object.keys(lc).some(k => lc[k] > 0 && activeFilters.lifecycle.has(k));
+      if (!hasMatch) return false;
+    }
+
+    // Source filter (only filter if source data exists)
+    const src = getSources(data);
+    if (Object.keys(src).length > 0 && activeFilters.sources.size > 0) {
+      const hasMatch = Object.keys(src).some(k => src[k] > 0 && activeFilters.sources.has(k));
+      if (!hasMatch) return false;
+    }
+
+    // How heard filter (only filter if heard data exists)
+    const heard = getHeardAbout(data);
+    if (Object.keys(heard).length > 0 && activeFilters.heard.size > 0) {
+      const hasMatch = Object.keys(heard).some(k => heard[k] > 0 && activeFilters.heard.has(k));
+      if (!hasMatch) return false;
     }
   }
 
@@ -1663,8 +1844,8 @@ function showHoverInfo(pc) {
 
   let html = `<strong>${pc}</strong>`;
   if (data) {
-    html += ` — ${data.city || ''}, ${data.state || ''}`;
-    html += `<br><span class="value">${data.leadCount}</span> leads`;
+    html += ` — ${getCity(data)}, ${getState(data)}`;
+    html += `<br><span class="value">${getTotal(data)}</span> leads`;
   }
   if (t) html += `<br><span style="color:${t.color};">${t.name}</span>`;
 
@@ -1681,7 +1862,7 @@ function hideHoverInfo() {
 // ============================================================
 function renderStatsTable() {
   const territoryList = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
-  const leadTypesList = [...new Set(Object.values(leadsData).flatMap(d => Object.keys(d.byLeadType || {})))].sort();
+  const leadTypesList = [...new Set(Object.values(leadsData).flatMap(d => Object.keys(getLeadTypes(d))))].sort();
 
   const thead = document.getElementById('stats-thead');
   let headerHtml = '<tr><th>Lead Type</th>';
@@ -1701,7 +1882,8 @@ function renderStatsTable() {
     for (const t of territoryList) {
       let count = 0;
       for (const pc of (t.postcodes || [])) {
-        if (leadsData[pc] && leadsData[pc].byLeadType && leadsData[pc].byLeadType[lt]) count += leadsData[pc].byLeadType[lt];
+        const ltData = getLeadTypes(leadsData[pc]);
+        if (ltData[lt]) count += ltData[lt];
       }
       bodyHtml += `<td>${count || ''}</td>`;
       totals[t.id] = (totals[t.id] || 0) + count;
@@ -1711,7 +1893,8 @@ function renderStatsTable() {
     const assigned = new Set();
     for (const t of territoryList) for (const pc of (t.postcodes || [])) assigned.add(pc);
     for (const [pc, data] of Object.entries(leadsData)) {
-      if (!assigned.has(pc) && data.byLeadType && data.byLeadType[lt]) rowUnassigned += data.byLeadType[lt];
+      const ltData = getLeadTypes(data);
+      if (!assigned.has(pc) && ltData[lt]) rowUnassigned += ltData[lt];
     }
     bodyHtml += `<td>${rowUnassigned || ''}</td><td><strong>${rowTotal + rowUnassigned}</strong></td></tr>`;
     unassignedTotal += rowUnassigned;
@@ -1728,13 +1911,26 @@ function renderStatsTable() {
 
 function renderPipelineTable() {
   const territoryList = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
-  const statusOrder = ['NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
-  const statusColors = { 'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)', 'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)' };
+  const statusOrder = ['new_lead', 'lead_contacted', 'quote_requested', 'quote_sent', 'won', 'lost', 'job_booked', 'job_completed',
+                       'NEW LEAD', 'LEAD CONTACTED/PAUSED', 'QUOTE SENT', 'WON', 'LOST'];
+  const statusColors = {
+    'new_lead': 'var(--status-new)', 'lead_contacted': 'var(--status-contacted)',
+    'quote_requested': '#a855f7', 'quote_sent': 'var(--status-quoted)',
+    'won': 'var(--status-won)', 'lost': 'var(--status-lost)',
+    'job_booked': '#06b6d4', 'job_completed': '#22c55e',
+    'NEW LEAD': 'var(--status-new)', 'LEAD CONTACTED/PAUSED': 'var(--status-contacted)',
+    'QUOTE SENT': 'var(--status-quoted)', 'WON': 'var(--status-won)', 'LOST': 'var(--status-lost)'
+  };
+  const statusLabels = {
+    'new_lead': 'New Lead', 'lead_contacted': 'Lead Contacted',
+    'quote_requested': 'Quote Requested', 'quote_sent': 'Quote Sent',
+    'won': 'Won', 'lost': 'Lost', 'job_booked': 'Job Booked', 'job_completed': 'Job Completed'
+  };
 
   const allStatuses = new Set();
   for (const [pc, data] of Object.entries(leadsData)) {
     if (!shouldShowPostcode(pc)) continue;
-    for (const st of Object.keys(data.byStatus || {})) allStatuses.add(st);
+    for (const st of Object.keys(getOpportunities(data))) allStatuses.add(st);
   }
   const sortedStatuses = [...allStatuses].sort((a, b) => {
     const ia = statusOrder.indexOf(a), ib = statusOrder.indexOf(b);
@@ -1743,7 +1939,10 @@ function renderPipelineTable() {
 
   const thead = document.getElementById('pipeline-thead');
   let headerHtml = '<tr><th style="text-align:left;">Territory</th>';
-  for (const st of sortedStatuses) headerHtml += `<th style="color:${statusColors[st] || 'var(--text-muted)'};">${st}</th>`;
+  for (const st of sortedStatuses) {
+    const label = statusLabels[st] || st;
+    headerHtml += `<th style="color:${statusColors[st] || 'var(--text-muted)'};">${label}</th>`;
+  }
   headerHtml += '<th style="color:var(--text-muted);">No Status</th><th><strong>Total</strong></th></tr>';
   thead.innerHTML = headerHtml;
 
@@ -1764,7 +1963,8 @@ function renderPipelineTable() {
       let count = 0;
       for (const pc of postcodeList) {
         if (!shouldShowPostcode(pc)) continue;
-        if (leadsData[pc] && leadsData[pc].byStatus && leadsData[pc].byStatus[st]) count += leadsData[pc].byStatus[st];
+        const opps = getOpportunities(leadsData[pc]);
+        if (opps[st]) count += opps[st];
       }
       html += `<td style="text-align:right;">${count || ''}</td>`;
       grandTotals[st] = (grandTotals[st] || 0) + count;
@@ -1774,11 +1974,12 @@ function renderPipelineTable() {
     for (const pc of postcodeList) {
       if (!shouldShowPostcode(pc)) continue;
       if (leadsData[pc]) {
-        const hasStatus = leadsData[pc].byStatus && Object.keys(leadsData[pc].byStatus).length > 0;
-        if (!hasStatus) rowNoStatus += leadsData[pc].leadCount;
+        const opps = getOpportunities(leadsData[pc]);
+        const hasStatus = Object.keys(opps).length > 0 && Object.values(opps).some(v => v > 0);
+        if (!hasStatus) rowNoStatus += getTotal(leadsData[pc]);
         else {
-          const statusSum = Object.values(leadsData[pc].byStatus).reduce((a,b) => a+b, 0);
-          rowNoStatus += leadsData[pc].leadCount - statusSum;
+          const statusSum = Object.values(opps).reduce((a,b) => a+b, 0);
+          rowNoStatus += getTotal(leadsData[pc]) - statusSum;
         }
       }
     }
@@ -1804,19 +2005,20 @@ function renderPostcodeDetailTable() {
   const tbody = document.getElementById('pc-detail-tbody');
   const rows = Object.entries(leadsData)
     .filter(([pc]) => shouldShowPostcode(pc))
-    .sort((a,b) => b[1].leadCount - a[1].leadCount)
+    .sort((a,b) => getTotal(b[1]) - getTotal(a[1]))
     .slice(0, 500);
 
   tbody.innerHTML = rows.map(([pc, data]) => {
     const t = getTerritoryForPostcode(pc);
-    const statuses = data.byStatus && Object.keys(data.byStatus).length
-      ? Object.entries(data.byStatus).map(([s,c]) => `${s}: ${c}`).join(', ')
+    const opps = getOpportunities(data);
+    const statuses = Object.keys(opps).length
+      ? Object.entries(opps).filter(([,c]) => c > 0).map(([s,c]) => `${s}: ${c}`).join(', ')
       : '—';
     return `<tr>
       <td>${pc}</td>
-      <td>${data.city || ''}</td>
-      <td>${data.state || ''}</td>
-      <td>${data.leadCount}</td>
+      <td>${getCity(data)}</td>
+      <td>${getState(data)}</td>
+      <td>${getTotal(data)}</td>
       <td>${t ? `<span style="color:${t.color}">${t.name}</span>` : '—'}</td>
       <td style="font-size:0.85em;">${statuses}</td>
     </tr>`;
