@@ -497,61 +497,115 @@ body { font-family: 'Open Sans', 'Inter', 'Segoe UI', system-ui, sans-serif; bac
   max-height: 300px;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
 }
 
-.filter-section {
-  padding: 12px 14px;
-  min-width: 130px;
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
+/* Compact filter bar */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
 }
 
-.filter-section h3 {
+.filter-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.filter-bar-label {
   font-size: 0.7em;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.filter-section h3::before {
-  content: '';
-  width: 3px;
-  height: 12px;
-  background: var(--accent);
-  border-radius: 2px;
-}
-
-.filter-checks { max-height: 130px; overflow-y: auto; }
-
-.filter-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  font-size: 0.8em;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background var(--transition);
-  color: var(--text-secondary);
-}
-.filter-check:hover { background: var(--bg-hover); color: var(--text-primary); }
-.filter-check input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
-  margin: 0;
-}
-.filter-check .swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  white-space: nowrap;
   flex-shrink: 0;
 }
+
+.filter-bar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.filter-pill {
+  padding: 4px 10px;
+  font-size: 0.75em;
+  font-weight: 500;
+  border: 1px solid var(--border-strong);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  font-family: inherit;
+  user-select: none;
+}
+
+.filter-pill:hover {
+  border-color: var(--accent-muted);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.filter-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.filter-pill .pill-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* Territory pills scroll container */
+.territory-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  max-width: 60vw;
+  padding-bottom: 2px;
+}
+
+.territory-pills-wrap::-webkit-scrollbar { height: 3px; }
+.territory-pills-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.filter-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.filter-bar-btn {
+  padding: 4px 10px;
+  font-size: 0.72em;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.filter-bar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* Stats area */
 #stats-area {
@@ -1031,33 +1085,28 @@ body { font-family: 'Open Sans', 'Inter', 'Segoe UI', system-ui, sans-serif; bac
   </div>
 
   <div id="bottom-panel">
-    <div class="filter-section">
-      <h3>States</h3>
-      <div class="filter-checks" id="state-filters"></div>
+    <div class="filter-bar">
+      <div class="filter-bar-group">
+        <span class="filter-bar-label">States</span>
+        <div id="state-filters"></div>
+      </div>
+      <div class="filter-bar-divider"></div>
+      <div class="filter-bar-group" style="flex:1;min-width:0;">
+        <span class="filter-bar-label">Territories</span>
+        <div class="territory-pills-wrap" id="franchise-filters"></div>
+      </div>
+      <div class="filter-bar-actions">
+        <button class="filter-bar-btn" id="select-all-territories-btn">All</button>
+        <button class="filter-bar-btn" id="select-none-territories-btn">None</button>
+      </div>
     </div>
-    <div class="filter-section">
-      <h3>Territories</h3>
-      <div class="filter-checks" id="franchise-filters"></div>
-    </div>
-    <div class="filter-section">
-      <h3>Lead Type</h3>
-      <div class="filter-checks" id="leadtype-filters"></div>
-    </div>
-    <div class="filter-section">
-      <h3>Opportunity Stage</h3>
-      <div class="filter-checks" id="status-filters"></div>
-    </div>
-    <div class="filter-section">
-      <h3>Lifecycle</h3>
-      <div class="filter-checks" id="lifecycle-filters"></div>
-    </div>
-    <div class="filter-section">
-      <h3>Source</h3>
-      <div class="filter-checks" id="source-filters"></div>
-    </div>
-    <div class="filter-section">
-      <h3>How Heard</h3>
-      <div class="filter-checks" id="heard-filters"></div>
+    <!-- Hidden containers for removed filters (keeps JS happy) -->
+    <div style="display:none;">
+      <div id="leadtype-filters"></div>
+      <div id="status-filters"></div>
+      <div id="lifecycle-filters"></div>
+      <div id="source-filters"></div>
+      <div id="heard-filters"></div>
     </div>
     <div id="stats-area">
       <div class="tab-bar">
@@ -1317,6 +1366,7 @@ async function initApp() {
   setTimeout(() => {
     initMap();
     initFilters();
+    initTerritoryToggleButtons();
     initTerritoryPanel();
     initEventHandlers();
     renderAll();
@@ -1784,11 +1834,19 @@ function initFilters() {
     for (const h of Object.keys(getHeardAbout(data))) heardNames.add(h);
   }
 
-  // States
+  // States as pills
   const stateContainer = document.getElementById('state-filters');
+  stateContainer.style.display = 'flex';
+  stateContainer.style.gap = '4px';
   for (const s of [...states].sort()) {
     activeFilters.states.add(s);
-    stateContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="state" data-value="${s}"> ${s}</label>`;
+    const pill = document.createElement('button');
+    pill.className = 'filter-pill active';
+    pill.dataset.filter = 'state';
+    pill.dataset.value = s;
+    pill.textContent = s;
+    pill.addEventListener('click', () => toggleFilterPill(pill));
+    stateContainer.appendChild(pill);
   }
 
   renderTerritoryFilters();
@@ -1860,6 +1918,9 @@ function initFilters() {
     heardContainer.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="heard" data-value="${h}"> ${h}</label>`;
   }
 
+  // Note: State/Territory pills use direct click handlers via toggleFilterPill()
+  // Hidden filters (leadtype, status, lifecycle, source, heard) keep their checkboxes
+  // for backwards compatibility but are not visible in the UI.
   document.getElementById('bottom-panel').addEventListener('change', function(e) {
     if (e.target.dataset.filter) handleFilterChange(e.target);
   });
@@ -1884,27 +1945,37 @@ function getTerritoryStates(territory) {
 
 function renderTerritoryFilters() {
   const container = document.getElementById('franchise-filters');
-  // Remember which territories were previously checked
   const prevChecked = new Set(activeFilters.territories);
   container.innerHTML = '';
   activeFilters.territories = new Set(['__unassigned__']);
 
-  container.innerHTML += `<label class="filter-check"><input type="checkbox" checked data-filter="territory" data-value="__unassigned__"><span class="swatch" style="background:#4b5563;"></span> Unassigned</label>`;
+  // Unassigned pill
+  const unPill = document.createElement('button');
+  unPill.className = 'filter-pill active';
+  unPill.dataset.filter = 'territory';
+  unPill.dataset.value = '__unassigned__';
+  unPill.innerHTML = `<span class="pill-swatch" style="background:#4b5563;"></span>Unassigned`;
+  unPill.addEventListener('click', () => toggleFilterPill(unPill));
+  container.appendChild(unPill);
 
   const allTerritories = Object.values(territories.territories || {}).sort((a,b) => a.name.localeCompare(b.name));
 
   for (const t of allTerritories) {
-    // Only show territories that have postcodes in the currently active states
     const tStates = getTerritoryStates(t);
     const matchesActiveState = tStates.size === 0 || [...tStates].some(s => activeFilters.states.has(s));
     if (!matchesActiveState) continue;
 
-    // On first render (prevChecked is empty or only has __unassigned__), check all visible territories
     const isFirstRender = prevChecked.size <= 1;
     const shouldCheck = isFirstRender || prevChecked.has(t.id);
     if (shouldCheck) activeFilters.territories.add(t.id);
-    const checked = shouldCheck ? 'checked' : '';
-    container.innerHTML += `<label class="filter-check"><input type="checkbox" ${checked} data-filter="territory" data-value="${t.id}"><span class="swatch" style="background:${t.color};"></span> ${t.name}</label>`;
+
+    const pill = document.createElement('button');
+    pill.className = 'filter-pill' + (shouldCheck ? ' active' : '');
+    pill.dataset.filter = 'territory';
+    pill.dataset.value = t.id;
+    pill.innerHTML = `<span class="pill-swatch" style="background:${t.color};"></span>${t.name}`;
+    pill.addEventListener('click', () => toggleFilterPill(pill));
+    container.appendChild(pill);
   }
 }
 
@@ -1932,6 +2003,51 @@ function handleFilterChange(checkbox) {
   }
 
   renderAll();
+}
+
+// Toggle pill-style filter button
+function toggleFilterPill(pill) {
+  const type = pill.dataset.filter;
+  const value = pill.dataset.value;
+  const isActive = pill.classList.contains('active');
+
+  if (isActive) {
+    pill.classList.remove('active');
+    const filterMap = { 'state': activeFilters.states, 'territory': activeFilters.territories };
+    if (filterMap[type]) filterMap[type].delete(value);
+  } else {
+    pill.classList.add('active');
+    const filterMap = { 'state': activeFilters.states, 'territory': activeFilters.territories };
+    if (filterMap[type]) filterMap[type].add(value);
+  }
+
+  // Cascade state changes to territories
+  if (type === 'state') {
+    renderTerritoryFilters();
+  }
+
+  renderAll();
+}
+
+// Territory All / None buttons
+function initTerritoryToggleButtons() {
+  document.getElementById('select-all-territories-btn')?.addEventListener('click', () => {
+    document.querySelectorAll('#franchise-filters .filter-pill').forEach(p => {
+      if (!p.classList.contains('active')) {
+        p.classList.add('active');
+        activeFilters.territories.add(p.dataset.value);
+      }
+    });
+    renderAll();
+  });
+
+  document.getElementById('select-none-territories-btn')?.addEventListener('click', () => {
+    document.querySelectorAll('#franchise-filters .filter-pill').forEach(p => {
+      p.classList.remove('active');
+      activeFilters.territories.delete(p.dataset.value);
+    });
+    renderAll();
+  });
 }
 
 function shouldShowPostcode(pc) {
@@ -1965,43 +2081,8 @@ function shouldShowPostcode(pc) {
       }
     }
 
-    // Lead type filter
-    const lt = getLeadTypes(data);
-    if (Object.keys(lt).length > 0) {
-      const hasMatch = Object.keys(lt).some(k => activeFilters.leadTypes.has(k));
-      if (!hasMatch) return false;
-    }
-
-    // Opportunity stage filter
-    const opps = getOpportunities(data);
-    const hasOppData = Object.keys(opps).length > 0 && Object.values(opps).some(v => v > 0);
-    if (hasOppData) {
-      const hasMatch = Object.keys(opps).some(st => opps[st] > 0 && activeFilters.statuses.has(st));
-      if (!hasMatch) return false;
-    } else {
-      if (!activeFilters.statuses.has('__none__')) return false;
-    }
-
-    // Lifecycle filter (only filter if lifecycle data exists)
-    const lc = getLifecycle(data);
-    if (Object.keys(lc).length > 0 && activeFilters.lifecycle.size > 0) {
-      const hasMatch = Object.keys(lc).some(k => lc[k] > 0 && activeFilters.lifecycle.has(k));
-      if (!hasMatch) return false;
-    }
-
-    // Source filter (only filter if source data exists)
-    const src = getSources(data);
-    if (Object.keys(src).length > 0 && activeFilters.sources.size > 0) {
-      const hasMatch = Object.keys(src).some(k => src[k] > 0 && activeFilters.sources.has(k));
-      if (!hasMatch) return false;
-    }
-
-    // How heard filter (only filter if heard data exists)
-    const heard = getHeardAbout(data);
-    if (Object.keys(heard).length > 0 && activeFilters.heard.size > 0) {
-      const hasMatch = Object.keys(heard).some(k => heard[k] > 0 && activeFilters.heard.has(k));
-      if (!hasMatch) return false;
-    }
+    // Removed: Lead Type, Opportunity Stage, Lifecycle, Source, How Heard
+    // filters were here — simplified to States + Territories + Date only
   }
 
   return true;
